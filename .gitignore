@@ -1,0 +1,22 @@
+# Qoder IDE configuration
+.qoder/
+
+# MATLAB generated files
+*.log
+*.asv
+*.mldatx
+*.mlx.autosave
+
+# Python cache
+__pycache__/
+*.pyc
+*.egg-info/
+
+# IDE configuration
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
