@@ -46,7 +46,8 @@ fprintf("\n=== 2. Ordered Logit Regression Example ===\n");
 % Dependent variable: Satisfaction rating (0=Unsatisfied, 1=Neutral, 2=Satisfied, 3=Very Satisfied)
 yOrdered = discretize(rand(nObs, 1), [0, 0.25, 0.5, 0.75, 1]) - 1;
 
-% Fit ordered logit model
+% Note: addConstant defaults to false (OrderedModel uses thresholds as intercepts)
+% Use addConstant=true only if you explicitly need a constant column
 result = pyBridge.StatsmodelsWrapper.orderedLogit(yOrdered, X);
 
 fprintf("Model Type: %s\n", result.modelType);
@@ -58,6 +59,8 @@ disp(result.params(1));
 %% 3. Ordered Probit Regression
 fprintf("\n=== 3. Ordered Probit Regression Example ===\n");
 
+% Note: addConstant defaults to false (OrderedModel uses thresholds as intercepts)
+% Use addConstant=true only if you explicitly need a constant column
 result = pyBridge.StatsmodelsWrapper.orderedProbit(yOrdered, X);
 
 fprintf("Model Type: %s\n", result.modelType);

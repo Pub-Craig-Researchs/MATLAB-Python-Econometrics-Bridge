@@ -590,7 +590,7 @@
                 end
             end
             
-            headerLine = repmat("-", 1, varColWidth + (modelColWidth + 2) * nTotalCols);
+            headerLine = string(repmat('-', 1, varColWidth + (modelColWidth + 2) * nTotalCols));
             
             lines = {};
             lines{end+1} = "";
@@ -662,7 +662,7 @@
                 lines{end+1} = sprintf("*** p<0.01, ** p<0.05, * p<0.1");
             end
             
-            tableStr = strjoin(lines, "\n");
+            tableStr = strjoin(string(lines), newline);
         end
         
         function [coef, se, p] = getCoefSE(~, model, varName, subIdx)

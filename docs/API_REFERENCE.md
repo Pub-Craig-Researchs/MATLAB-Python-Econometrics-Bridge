@@ -201,24 +201,38 @@ resultHAC = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
 #### Ordered Logit/Probit
 
 ```matlab
-result = pyBridge.StatsmodelsWrapper.orderedLogit(y, X)
-result = pyBridge.StatsmodelsWrapper.orderedProbit(y, X)
+result = pyBridge.StatsmodelsWrapper.orderedLogit(y, X, options)
+result = pyBridge.StatsmodelsWrapper.orderedProbit(y, X, options)
 ```
 
 **参数:**
 - `y`: 有序因变量(整数编码: 0, 1, 2, ..., K-1)
+- `X`: 自变量矩阵
+- `options.addConstant` (logical, default: **false**): 是否添加常数项。注意: OrderedModel 不允许 X 中包含常数列（阈值参数作为截距）
+- `options.maxIter` (double, default: **1000**): MLE优化的最大迭代次数
+- `options.covType` (string, default: "nonrobust"): 协方差矩阵类型: "nonrobust", "HC0", "HC1", "HC2", "HC3"
 
 **返回字段:**
-- `thresholds`: 阈值参数(cut points)
-- `params`: 系数估计
+- `coefficients`: 回归系数（不含阈值）
+- `stdErrors`: 系数标准误
+- `thresholds`: 实际切点（转换为Stata约定格式）
+- `rawThresholds`: 原始statsmodels参数化格式（log-diff格式）
+- `thresholdStdErrors`: 阈值标准误
+- `params`: 系数估计（与coefficients相同）
+- `tStatistics`: t统计量
+- `pValues`: p值
 
 **示例:**
 ```matlab
 % 满意度评级(不满意=0, 一般=1, 满意=2, 非常满意=3)
 y = [0; 1; 2; 3; 1; ...];
+% Note: addConstant=false by default (OrderedModel uses thresholds as intercepts)
 result = pyBridge.StatsmodelsWrapper.orderedLogit(y, X);
 fprintf('阈值: ');
 disp(result.thresholds);
+
+% 使用稳健标准误
+result = pyBridge.StatsmodelsWrapper.orderedLogit(y, X, covType="HC1");
 ```
 
 #### Poisson回归
@@ -229,9 +243,16 @@ result = pyBridge.StatsmodelsWrapper.poisson(y, X, options)
 
 **参数:**
 - `y`: 计数数据
+- `X`: 自变量矩阵
+- `options.addConstant` (logical, default: **true**): 是否添加常数项
 - `options.exposure`: 暴露变量(可选)
+- `options.covType` (string, default: "nonrobust"): 协方差矩阵类型: "nonrobust", "HC0", "HC1", "HC2", "HC3"
 
 **返回字段:**
+- `params`: 系数估计
+- `stdErrors`: 标准误
+- `tStatistics`: t统计量
+- `pValues`: p值
 - `overdispersionTest`: 过度离散检验统计量
 - `hasOverdispersion`: 是否存在过度离散(>1.5)
 
@@ -244,6 +265,9 @@ result = pyBridge.StatsmodelsWrapper.poisson(y, X);
 if result.hasOverdispersion
     fprintf('存在过度离散,建议使用负二项回归\n');
 end
+
+% 使用稳健标准误
+result = pyBridge.StatsmodelsWrapper.poisson(y, X, covType="HC1");
 ```
 
 #### Negative Binomial回归
@@ -625,9 +649,28 @@ sig = pyBridge.internal.ScipySignal();
 
 | 方法 | 说明 |
 |------|------|
-| `iv2SLS(y, X, instruments, options)` | 两阶段最小二乘 |
-| `ivLIML(y, X, instruments, options)` | 有限信息极大似然估计 |
-| `ivGMM(y, X, instruments, options)` | 广义矩估计 |
+| `iv2SLS(y, endogVars, exogVars, instruments, options)` | 两阶段最小二乘 |
+| `ivLIML(y, endogVars, exogVars, instruments, options)` | 有限信息极大似然估计 |
+| `ivGMM(y, endogVars, exogVars, instruments, options)` | 广义矩估计 |
+
+**参数说明**：
+- `y`：因变量
+- `endogVars`：内生变量（Endogenous regressors，受内生性困扰、需要工具化的变量）
+- `exogVars`：外生控制变量（Exogenous regressors，不需要工具化的控制变量），无外生控制时传 `[]`
+- `instruments`：工具变量（Instrumental variables，排除限制，用于识别内生变量，数量需 >= 内生变量数量）
+- `options.addConstant` (logical, default: **true**)：是否向外生变量中添加常数项
+- `options.covType` (string, default: "unadjusted")：协方差矩阵类型: "unadjusted", "robust", "kernel", "clustered"
+- `options.weights`：观测权重（可选）
+
+**示例**：
+```matlab
+% 工资方程：教育是内生变量，用父母教育水平作为工具变量
+% wage = f(education, experience), 其中 education 是内生的
+result = pyBridge.LinearmodelsWrapper.iv2SLS(wage, education, experience, parents_edu);
+
+% 无外生控制变量的情况
+result = pyBridge.LinearmodelsWrapper.iv2SLS(y, endogX, [], instruments);
+```
 
 #### 检验方法
 

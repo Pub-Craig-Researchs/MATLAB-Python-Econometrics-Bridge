@@ -202,6 +202,7 @@ disp(result.marginalEffects);
 
 %% Ordered Logit (Ordinal Choice)
 yOrdered = [0; 1; 2; 3; 1; ...]; % Ordinal dependent variable (0,1,2,3,...)
+% Note: addConstant=false by default (OrderedModel uses thresholds as intercepts)
 result = pyBridge.StatsmodelsWrapper.orderedLogit(yOrdered, X);
 fprintf('Threshold parameters:\n');
 disp(result.thresholds);

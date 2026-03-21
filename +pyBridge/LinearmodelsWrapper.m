@@ -306,98 +306,221 @@
         end
         
         %% Instrumental Variable Regression
-        function result = iv2SLS(y, X, instruments, options)
-            % IV2SLS Two-stage least squares
+        function result = iv2SLS(y, endogVars, exogVars, instruments, options)
+            % IV2SLS Two-stage least squares estimation
+            %
+            % Syntax:
+            %   result = pyBridge.LinearmodelsWrapper.iv2SLS(y, endogVars, exogVars, instruments)
+            %   result = pyBridge.LinearmodelsWrapper.iv2SLS(y, endogVars, exogVars, instruments, weights=w)
+            %
+            % Parameters:
+            %   y           - (n x 1) Dependent variable
+            %   endogVars   - (n x k1) Endogenous regressors (variables suspected of endogeneity)
+            %   exogVars    - (n x k2) Exogenous regressors (control variables, not instrumented)
+            %                 Pass [] if no exogenous controls
+            %   instruments - (n x m) Instrumental variables (excluded instruments, m >= k1)
+            %   options.weights - (n x 1) Observation weights (optional)
+            %
+            % linearmodels API: IV2SLS(dependent, exog, endog, instruments)
+            %   -> dependent = y
+            %   -> exog = exogVars (exogenous controls)
+            %   -> endog = endogVars (endogenous variables)
+            %   -> instruments = instruments (instrumental variables)
+            %
+            % Example:
+            %   % y = wage, endogVars = education, exogVars = experience, instruments = parents_education
+            %   result = pyBridge.LinearmodelsWrapper.iv2SLS(wage, education, experience, parents_edu);
             
             arguments
                 y double
-                X double % Endogenous and exogenous variables
+                endogVars double % Endogenous regressors (need to be instrumented)
+                exogVars double % Exogenous regressors (control variables), pass [] if none
                 instruments double % Instrumental variables
-                options.exogenousVars double = [] % Exogenous variable indices
+                options.weights double = []
+                options.addConstant (1,1) logical = true
+                options.covType string = "unadjusted"
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("linearmodels");
             
-            yPy = pyBridge.DataConverter.toPython(y(:));
-            XPy = pyBridge.DataConverter.toPython(X);
-            instrumentsPy = pyBridge.DataConverter.toPython(instruments);
-            
-            if isempty(options.exogenousVars)
-                exogPy = py.None;
-            else
-                exogPy = pyBridge.DataConverter.toPython(options.exogenousVars);
+            % Add constant to exogenous variables if requested
+            if options.addConstant
+                n = size(endogVars, 1);
+                if isempty(exogVars)
+                    exogVars = ones(n, 1);
+                else
+                    exogVars = [ones(n, 1), exogVars];
+                end
             end
             
-            model = py.linearmodels.iv.IV2SLS(yPy, XPy, instrumentsPy, exogPy);
-            fitResult = model.fit();
+            % Convert dependent variable
+            yPy = pyBridge.DataConverter.toPython(y(:));
+            
+            % Convert endogenous variables
+            endogPy = pyBridge.DataConverter.toPython(endogVars);
+            
+            % Convert exogenous variables (can be empty)
+            if isempty(exogVars)
+                exogPy = py.None;
+            else
+                exogPy = pyBridge.DataConverter.toPython(exogVars);
+            end
+            
+            % Convert instruments
+            instrumentsPy = pyBridge.DataConverter.toPython(instruments);
+            
+            % linearmodels API: IV2SLS(dependent, exog, endog, instruments)
+            if isempty(options.weights)
+                model = py.linearmodels.iv.IV2SLS(yPy, exogPy, endogPy, instrumentsPy);
+            else
+                weightsPy = pyBridge.DataConverter.toPython(options.weights(:));
+                model = py.linearmodels.iv.IV2SLS(yPy, exogPy, endogPy, instrumentsPy, weights=weightsPy);
+            end
+            fitResult = model.fit(pyargs("cov_type", char(options.covType)));
             
             result = pyBridge.ResultParser.parseLinearmodels(fitResult);
             result.modelType = "IV2SLS";
             
             % Add IV-specific diagnostics
-            if py_builtin.hasattr(fitResult, 'first_stage')
+            if py_builtin.hasattr(fitResult, "first_stage")
                 result.firstStage = pyBridge.ResultParser.parseLinearmodels(fitResult.first_stage);
             end
         end
         
-        function result = ivLIML(y, X, instruments, options)
+        function result = ivLIML(y, endogVars, exogVars, instruments, options)
             % IVLIML Limited information maximum likelihood estimation
+            %
+            % Syntax:
+            %   result = pyBridge.LinearmodelsWrapper.ivLIML(y, endogVars, exogVars, instruments)
+            %   result = pyBridge.LinearmodelsWrapper.ivLIML(y, endogVars, exogVars, instruments, weights=w)
+            %
+            % Parameters:
+            %   y           - (n x 1) Dependent variable
+            %   endogVars   - (n x k1) Endogenous regressors (variables suspected of endogeneity)
+            %   exogVars    - (n x k2) Exogenous regressors (control variables, not instrumented)
+            %                 Pass [] if no exogenous controls
+            %   instruments - (n x m) Instrumental variables (excluded instruments, m >= k1)
+            %   options.weights - (n x 1) Observation weights (optional)
+            %
+            % linearmodels API: IVLIML(dependent, exog, endog, instruments)
             
             arguments
                 y double
-                X double
-                instruments double
-                options.exogenousVars double = []
+                endogVars double % Endogenous regressors (need to be instrumented)
+                exogVars double % Exogenous regressors (control variables), pass [] if none
+                instruments double % Instrumental variables
+                options.weights double = []
+                options.addConstant (1,1) logical = true
+                options.covType string = "unadjusted"
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("linearmodels");
             
-            yPy = pyBridge.DataConverter.toPython(y(:));
-            XPy = pyBridge.DataConverter.toPython(X);
-            instrumentsPy = pyBridge.DataConverter.toPython(instruments);
-            
-            if isempty(options.exogenousVars)
-                exogPy = py.None;
-            else
-                exogPy = pyBridge.DataConverter.toPython(options.exogenousVars);
+            % Add constant to exogenous variables if requested
+            if options.addConstant
+                n = size(endogVars, 1);
+                if isempty(exogVars)
+                    exogVars = ones(n, 1);
+                else
+                    exogVars = [ones(n, 1), exogVars];
+                end
             end
             
-            model = py.linearmodels.iv.IVLIML(yPy, XPy, instrumentsPy, exogPy);
-            fitResult = model.fit();
+            % Convert dependent variable
+            yPy = pyBridge.DataConverter.toPython(y(:));
+            
+            % Convert endogenous variables
+            endogPy = pyBridge.DataConverter.toPython(endogVars);
+            
+            % Convert exogenous variables (can be empty)
+            if isempty(exogVars)
+                exogPy = py.None;
+            else
+                exogPy = pyBridge.DataConverter.toPython(exogVars);
+            end
+            
+            % Convert instruments
+            instrumentsPy = pyBridge.DataConverter.toPython(instruments);
+            
+            % linearmodels API: IVLIML(dependent, exog, endog, instruments)
+            if isempty(options.weights)
+                model = py.linearmodels.iv.IVLIML(yPy, exogPy, endogPy, instrumentsPy);
+            else
+                weightsPy = pyBridge.DataConverter.toPython(options.weights(:));
+                model = py.linearmodels.iv.IVLIML(yPy, exogPy, endogPy, instrumentsPy, weights=weightsPy);
+            end
+            fitResult = model.fit(pyargs("cov_type", char(options.covType)));
             
             result = pyBridge.ResultParser.parseLinearmodels(fitResult);
             result.modelType = "IVLIML";
         end
         
-        function result = ivGMM(y, X, instruments, options)
-            % IVGMM Generalized method of moments
+        function result = ivGMM(y, endogVars, exogVars, instruments, options)
+            % IVGMM Generalized method of moments estimation
+            %
+            % Syntax:
+            %   result = pyBridge.LinearmodelsWrapper.ivGMM(y, endogVars, exogVars, instruments)
+            %   result = pyBridge.LinearmodelsWrapper.ivGMM(y, endogVars, exogVars, instruments, weights=w)
+            %
+            % Parameters:
+            %   y           - (n x 1) Dependent variable
+            %   endogVars   - (n x k1) Endogenous regressors (variables suspected of endogeneity)
+            %   exogVars    - (n x k2) Exogenous regressors (control variables, not instrumented)
+            %                 Pass [] if no exogenous controls
+            %   instruments - (n x m) Instrumental variables (excluded instruments, m >= k1)
+            %   options.weights - (n x 1) Observation weights (optional)
+            %
+            % linearmodels API: IVGMM(dependent, exog, endog, instruments)
             
             arguments
                 y double
-                X double
-                instruments double
-                options.exogenousVars double = []
-                options.weights char = "robust" % 'unadjusted', 'robust', 'cluster'
+                endogVars double % Endogenous regressors (need to be instrumented)
+                exogVars double % Exogenous regressors (control variables), pass [] if none
+                instruments double % Instrumental variables
+                options.weights double = []
+                options.addConstant (1,1) logical = true
+                options.covType string = "unadjusted"
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("linearmodels");
             
-            yPy = pyBridge.DataConverter.toPython(y(:));
-            XPy = pyBridge.DataConverter.toPython(X);
-            instrumentsPy = pyBridge.DataConverter.toPython(instruments);
-            
-            if isempty(options.exogenousVars)
-                exogPy = py.None;
-            else
-                exogPy = pyBridge.DataConverter.toPython(options.exogenousVars);
+            % Add constant to exogenous variables if requested
+            if options.addConstant
+                n = size(endogVars, 1);
+                if isempty(exogVars)
+                    exogVars = ones(n, 1);
+                else
+                    exogVars = [ones(n, 1), exogVars];
+                end
             end
             
-            model = py.linearmodels.iv.IVGMM(yPy, XPy, instrumentsPy, exogPy);
-            fitResult = model.fit();
+            % Convert dependent variable
+            yPy = pyBridge.DataConverter.toPython(y(:));
+            
+            % Convert endogenous variables
+            endogPy = pyBridge.DataConverter.toPython(endogVars);
+            
+            % Convert exogenous variables (can be empty)
+            if isempty(exogVars)
+                exogPy = py.None;
+            else
+                exogPy = pyBridge.DataConverter.toPython(exogVars);
+            end
+            
+            % Convert instruments
+            instrumentsPy = pyBridge.DataConverter.toPython(instruments);
+            
+            % linearmodels API: IVGMM(dependent, exog, endog, instruments)
+            if isempty(options.weights)
+                model = py.linearmodels.iv.IVGMM(yPy, exogPy, endogPy, instrumentsPy);
+            else
+                weightsPy = pyBridge.DataConverter.toPython(options.weights(:));
+                model = py.linearmodels.iv.IVGMM(yPy, exogPy, endogPy, instrumentsPy, weights=weightsPy);
+            end
+            fitResult = model.fit(pyargs("cov_type", char(options.covType)));
             
             result = pyBridge.ResultParser.parseLinearmodels(fitResult);
             result.modelType = "IVGMM";
-            result.weights = options.weights;
         end
         
         %% Tests

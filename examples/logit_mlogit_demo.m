@@ -93,9 +93,9 @@ fprintf('  y=2 (High):   %d (%.1f%%)\n', sum(y_multi==2), 100*mean(y_multi==2));
 % Estimate binary logit model using pyBridge.StatsmodelsWrapper.logistic()
 
 fprintf('\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('Section 2: Binary Logit Regression\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 
 % Basic Logit regression (classical standard errors)
 result_logit = pyBridge.StatsmodelsWrapper.logistic(y_binary, X);
@@ -121,9 +121,9 @@ end
 % HAC is typically used with time series or panel data to account for serial correlation
 
 fprintf('\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('Section 3: HAC Standard Error Correction\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 
 % Calculate automatic lag selection using Newey-West rule
 % Formula: lag = floor(4 * ((T/100)^(2/9)))
@@ -138,11 +138,12 @@ fprintf('  T = %d, autoLag = floor(4 * ((%d/100)^(2/9))) = %d\n', T, T, autoLag)
 
 fprintf('\n--- HAC Standard Errors for OLS (Linear Probability Model) ---\n');
 
-% Bartlett/Newey-West kernel with automatic lag selection
+% Newey-West kernel with automatic lag selection
+% Note: "newey-west", "nw", and "bartlett" are all equivalent aliases
 result_hac_bartlett = pyBridge.StatsmodelsWrapper.ols(y_binary, X, ...
-    covType="hac", maxLags=autoLag, kernel="bartlett");
+    covType="hac", maxLags=autoLag, kernel="newey-west");
 
-fprintf('\nOLS with HAC (Bartlett/Newey-West kernel, lag=%d):\n', autoLag);
+fprintf('\nOLS with HAC (Newey-West kernel, lag=%d):\n', autoLag);
 fprintf('  %-10s %10s %10s\n', 'Variable', 'Coef', 'HAC SE');
 for i = 1:length(result_hac_bartlett.params)
     fprintf('  %-10s %10.4f %10.4f\n', ...
@@ -191,9 +192,9 @@ end
 % Estimate multinomial logit model for multi-class outcomes
 
 fprintf('\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('Section 4: Multinomial Logit (MLogit) Regression\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 
 %% 4.1 Basic MLogit Model
 result_mlogit = pyBridge.StatsmodelsWrapper.multinomialLogit(y_multi, X);
@@ -209,7 +210,17 @@ fprintf('  AIC: %.4f\n', result_mlogit.aic);
 fprintf('\n  Coefficients (Reference: Low):\n');
 fprintf('  Parameters shape: %s\n', mat2str(size(result_mlogit.params)));
 
-%% 4.2 MLogit with Clustered Standard Errors
+%% 4.2 MLogit with Custom Reference Level
+% By default, the smallest category (0=Low) is the reference
+% Here we set "High" (category 2) as the reference level
+result_mlogit_ref2 = pyBridge.StatsmodelsWrapper.multinomialLogit(y_multi, X, ...
+    referenceLevel=2);
+
+fprintf('\nMLogit with Reference Level = 2 (High):\n');
+fprintf('  Reference category: %d\n', result_mlogit_ref2.referenceLevel);
+fprintf('  Non-reference categories: %s\n', mat2str(result_mlogit_ref2.categoryOrder));
+
+%% 4.3 MLogit with Clustered Standard Errors
 result_mlogit_cluster = pyBridge.StatsmodelsWrapper.multinomialLogit(y_multi, X, ...
     covType="cluster", clusterIds=clusterIds);
 
@@ -221,19 +232,19 @@ fprintf('  Covariance type: %s\n', result_mlogit_cluster.covType);
 % Calculate various types of marginal effects for the Logit model
 
 fprintf('\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('Section 5: Marginal Effects Calculation\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 
 %% 5.1 Average Marginal Effects (AME)
 % AME: Average of marginal effects computed at each observation
-% margeffAt="all" computes at all observations and averages
+% margeffAt="overall" computes average marginal effects over all observations
 
 fprintf('\n--- Average Marginal Effects (AME) ---\n');
 fprintf('AME computes marginal effects at each observation and averages them.\n');
 
 result_ame = pyBridge.StatsmodelsWrapper.logistic(y_binary, X, ...
-    margeffMethod="dydx", margeffAt="all");
+    margeffMethod="dydx", margeffAt="overall");
 
 fprintf('\nAverage Marginal Effects (AME):\n');
 fprintf('  %-10s %10s %10s %10s %10s\n', 'Variable', 'Effect', 'Std.Err', 'z-stat', 'p-value');
@@ -305,9 +316,9 @@ end
 % Create professional regression tables using RegressionTable class
 
 fprintf('\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('Section 6: Regression Table Output\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 
 % Create RegressionTable instance
 tbl = pyBridge.RegressionTable();
@@ -329,6 +340,12 @@ tbl = tbl.addMLogit("MLogit", result_mlogit, ...
     categoryNames={"Medium", "High"}, ...
     referenceName="Low");
 
+% Add MLogit with custom reference level (High as reference)
+tbl = tbl.addMLogit("MLogit_ref2", result_mlogit_ref2, ...
+    varNames={"X1", "X2", "X3"}, ...
+    categoryNames={"Low", "Medium"}, ...
+    referenceName="High");
+
 % Set variable display order
 tbl = tbl.setVarOrder({"const", "X1", "X2", "X3"});
 
@@ -340,9 +357,9 @@ tbl.display();
 % Create a separate table to display marginal effects from different methods
 
 fprintf('\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('Section 7: Marginal Effects Comparison Table\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 
 % Create a new RegressionTable for marginal effects
 tbl_me = pyBridge.RegressionTable();
@@ -408,7 +425,7 @@ tbl_me = tbl_me.setVarOrder({"X1", "X2", "X3"});
 
 % Display marginal effects comparison table
 fprintf('\n--- Marginal Effects Comparison ---\n');
-fprintf('AME: Average Marginal Effect (at="all")\n');
+fprintf('AME: Average Marginal Effect (at="overall")\n');
 fprintf('MEM: Marginal Effect at Mean (at="mean")\n');
 fprintf('eyex: Elasticity (%%dy/%%dx)\n');
 fprintf('dyex: Semi-elasticity (dy/%%dx)\n');
@@ -417,14 +434,14 @@ tbl_me.display();
 
 %% Summary
 fprintf('\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('SUMMARY\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 fprintf('\nThis demonstration covered:\n');
 fprintf('  1. Data generation for binary and multi-class outcomes\n');
 fprintf('  2. Binary Logit regression with classical standard errors\n');
 fprintf('  3. HAC standard errors for OLS and Logistic regression\n');
-fprintf('     - Bartlett (Newey-West), Parzen, and Quadratic Spectral kernels\n');
+fprintf('     - Newey-West (bartlett/nw), Parzen, and Quadratic Spectral kernels\n');
 fprintf('     - Automatic lag selection: lag = floor(4*((T/100)^(2/9)))\n');
 fprintf('  4. Multinomial Logit for multi-class outcomes\n');
 fprintf('     - Basic MLogit and MLogit with clustered standard errors\n');
@@ -435,6 +452,6 @@ fprintf('     - Elasticity forms: eyex, dyex, eydx\n');
 fprintf('  6. RegressionTable for publication-ready output\n');
 fprintf('     - addModel() for standard models\n');
 fprintf('     - addMLogit() for multinomial logit (multi-column display)\n');
-fprintf('='*70 + '\n');
+fprintf('%s\n', repmat('=', 1, 70));
 
 %% End of demonstration

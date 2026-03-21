@@ -358,11 +358,10 @@
             
             % Marginal effects calculation (with standard errors and significance)
             try
-                margeffKwds = py.dict();
-                margeffKwds{"method"} = options.margeffMethod;
-                margeffKwds{"at"} = options.margeffAt;
-                
-                margeff = fitResult.get_margeff(kwargs=margeffKwds);
+                % Use pyrun to call get_margeff (MATLAB dot notation fails on wrapper __getattr__)
+                margeff = pyrun( ...
+                    "me = fit.get_margeff(at=at_val, method=meth_val)", "me", ...
+                    fit=fitResult, at_val=char(options.margeffAt), meth_val=char(options.margeffMethod));
                 
                 result.marginalEffects = double(margeff.margeff);
                 result.marginalEffectsMethod = options.margeffMethod;
@@ -493,11 +492,10 @@
             
             % Marginal effects calculation
             try
-                margeffKwds = py.dict();
-                margeffKwds{"method"} = options.margeffMethod;
-                margeffKwds{"at"} = options.margeffAt;
-                
-                margeff = fitResult.get_margeff(kwargs=margeffKwds);
+                % Use pyrun to call get_margeff (MATLAB dot notation fails on wrapper __getattr__)
+                margeff = pyrun( ...
+                    "me = fit.get_margeff(at=at_val, method=meth_val)", "me", ...
+                    fit=fitResult, at_val=char(options.margeffAt), meth_val=char(options.margeffMethod));
                 
                 result.marginalEffects = double(margeff.margeff);
                 result.marginalEffectsMethod = options.margeffMethod;
@@ -542,6 +540,9 @@
             %   options.maxLags - Maximum lags for HAC (for HAC standard errors)
             %   options.timeIds - Time identifiers (for hac-groupsum)
             %   options.kernel - HAC kernel (default 'bartlett')
+            %   options.referenceLevel - Reference category for MNLogit (default: smallest)
+            %       When specified, y is recoded so that this level becomes the
+            %       reference (base) category. Other categories are numbered 1,2,...
             %
             % Returns:
             %   result.params - Coefficient matrix (K-1 x p)
@@ -563,6 +564,10 @@
             %   % Driscoll-Kraay panel HAC
             %   result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
             %       covType="hac-groupsum", timeIds=yearIds, maxLags=4);
+            %
+            %   % Custom reference level (set category 2 as reference)
+            %   result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
+            %       referenceLevel=2);
             
             arguments
                 y double % Multi-class dependent variable (0,1,2,...)
@@ -574,12 +579,37 @@
                 options.maxLags double = []
                 options.timeIds double = []
                 options.kernel char = "bartlett"
+                options.referenceLevel double = nan  % Reference level (default: smallest category)
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("statsmodels");
             
-            % Convert y to 1D array (n,) - MNLogit requires 1D y
-            yPy = pyBridge.DataConverter.toPython(y(:));
+            % Determine reference level and recode y
+            uniqueY = sort(unique(y));
+            nCategories = length(uniqueY);
+            
+            if isnan(options.referenceLevel)
+                refLevel = uniqueY(1);  % Default: smallest category
+            else
+                refLevel = options.referenceLevel;
+                if ~ismember(refLevel, uniqueY)
+                    error("pyBridge:InvalidReferenceLevel", ...
+                        "Reference level %d not found in y. Available levels: %s", ...
+                        refLevel, mat2str(uniqueY));
+                end
+            end
+            
+            % Recode y so that reference level becomes 0 and other categories become 1,2,...
+            % This is needed because statsmodels MNLogit always uses 0 as reference
+            categoryMap = uniqueY(uniqueY ~= refLevel);  % Non-reference categories in order
+            y_recoded = zeros(size(y));
+            for k = 1:length(categoryMap)
+                y_recoded(y == categoryMap(k)) = k;
+            end
+            % Reference level stays 0 (already initialized to zeros)
+            
+            % Convert y_recoded to 1D array (n,) - MNLogit requires 1D y
+            yPy = pyBridge.DataConverter.toPython(y_recoded(:));
             % Ensure y is truly 1D (flatten in case it's still (n,1))
             yPy = py.numpy.asarray(yPy).flatten();
             
@@ -683,9 +713,9 @@
                 result.modelType = "MultinomialLogit";
             end
             
-            % Get number of categories and handle dimension issues
-            uniqueY = unique(y);
-            nCategories = length(uniqueY);
+            % Store reference level and category mapping in result
+            result.referenceLevel = refLevel;
+            result.categoryOrder = categoryMap;  % Non-reference categories
             result.nCategories = nCategories;
             
             % Warning for binary case - recommend using logistic instead
@@ -696,7 +726,8 @@
             
             % Marginal effects - handle dimension issues carefully
             try
-                margeff = fitResult.get_margeff();
+                % Use pyrun to call get_margeff (MATLAB dot notation fails on wrapper __getattr__)
+                margeff = pyrun("me = fit.get_margeff()", "me", fit=fitResult);
                 margeffArr = py.numpy.asarray(margeff.margeff);
                 % Ensure 2D array for marginal effects
                 if double(py.getattr(margeffArr, 'ndim')) == 1
@@ -750,8 +781,9 @@
             arguments
                 y double % Ordered dependent variable (0,1,2,...)
                 X double
-                options.addConstant logical = true
-                options.maxIter double = 100
+                options.addConstant logical = false
+                options.maxIter double = 1000
+                options.covType string = "nonrobust"
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("statsmodels");
@@ -771,14 +803,48 @@
                 % Fallback for older versions
                 model = py.statsmodels.miscmodels.ordinal_model.OrderedModel(yPy, XPy, distr="logit");
             end
-            fitResult = model.fit(maxiter=int32(options.maxIter), disp=false);
+            fitResult = pyrun("result = model.fit(maxiter=maxiter_val, disp=False, cov_type=cov_val)", "result", model=model, maxiter_val=int32(options.maxIter), cov_val=char(options.covType));
 
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "OrderedLogit";
 
-            % Threshold parameters (k_constant needs to be converted to MATLAB scalar)
-            kConst = double(fitResult.k_constant);
-            result.thresholds = double(fitResult.params(1:kConst-1));
+            % Extract thresholds using model.k_extra (number of threshold parameters)
+            % OrderedModel params order: [beta_1, ..., beta_p, threshold_1, ..., threshold_{K-1}]
+            try
+                modelObj = py.getattr(fitResult, "model", py.None);
+                if ~isequal(modelObj, py.None)
+                    kExtra = double(py.getattr(modelObj, "k_extra", py.int(0)));
+                else
+                    kExtra = 0;
+                end
+                paramsAttr = py.getattr(fitResult, "params", py.None);
+                bseAttr = py.getattr(fitResult, "bse", py.None);
+                if kExtra > 0 && ~isequal(paramsAttr, py.None)
+                    allParams = double(paramsAttr);
+                    nBetas = length(allParams) - kExtra;
+                    if nBetas > 0
+                        result.coefficients = allParams(1:nBetas);
+                        % Convert from statsmodels parameterization to actual cutpoints
+                        % statsmodels: [cut1, log_diff2, log_diff3, ...]
+                        % Actual: [cut1, cut1+exp(log_diff2), ...]
+                        rawThresholds = allParams(nBetas+1:end);
+                        result.rawThresholds = rawThresholds;
+                        cutpoints = zeros(size(rawThresholds));
+                        cutpoints(1) = rawThresholds(1);
+                        for i = 2:length(rawThresholds)
+                            cutpoints(i) = cutpoints(i-1) + exp(rawThresholds(i));
+                        end
+                        result.thresholds = cutpoints;
+                    end
+                    if ~isequal(bseAttr, py.None)
+                        allBse = double(bseAttr);
+                        result.stdErrors = allBse(1:nBetas);
+                        result.thresholdStdErrors = allBse(nBetas+1:end);
+                    end
+                end
+            catch ME
+                warning("pyBridge:ThresholdExtraction", "Failed to extract thresholds: %s", ME.message);
+            end
         end
         
         function result = orderedProbit(y, X, options)
@@ -794,8 +860,9 @@
             arguments
                 y double % Ordered dependent variable (0,1,2,...)
                 X double
-                options.addConstant logical = true
-                options.maxIter double = 100
+                options.addConstant logical = false
+                options.maxIter double = 1000
+                options.covType string = "nonrobust"
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("statsmodels");
@@ -807,13 +874,56 @@
                 XPy = py.statsmodels.api.add_constant(XPy);
             end
             
-            % Ordered Probit model
-            model = py.statsmodels.miscmodels.ordinal_model.OrderedModel(yPy, XPy, distr="probit");
-            fitResult = model.fit(maxiter=int32(options.maxIter), disp=false);
+            % Ordered Probit model (with version compatibility)
+            try
+                % statsmodels >= 0.14 uses new API
+                model = py.statsmodels.discrete.ordered_model.OrderedModel(yPy, XPy, distr="probit");
+            catch
+                % Fallback for older versions
+                model = py.statsmodels.miscmodels.ordinal_model.OrderedModel(yPy, XPy, distr="probit");
+            end
+            fitResult = pyrun("result = model.fit(maxiter=maxiter_val, disp=False, cov_type=cov_val)", "result", model=model, maxiter_val=int32(options.maxIter), cov_val=char(options.covType));
             
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "OrderedProbit";
-            result.thresholds = double(fitResult.params(1:fitResult.k_constant-1));
+            
+            % Extract thresholds using model.k_extra (number of threshold parameters)
+            % OrderedModel params order: [beta_1, ..., beta_p, threshold_1, ..., threshold_{K-1}]
+            try
+                modelObj = py.getattr(fitResult, "model", py.None);
+                if ~isequal(modelObj, py.None)
+                    kExtra = double(py.getattr(modelObj, "k_extra", py.int(0)));
+                else
+                    kExtra = 0;
+                end
+                paramsAttr = py.getattr(fitResult, "params", py.None);
+                bseAttr = py.getattr(fitResult, "bse", py.None);
+                if kExtra > 0 && ~isequal(paramsAttr, py.None)
+                    allParams = double(paramsAttr);
+                    nBetas = length(allParams) - kExtra;
+                    if nBetas > 0
+                        result.coefficients = allParams(1:nBetas);
+                        % Convert from statsmodels parameterization to actual cutpoints
+                        % statsmodels: [cut1, log_diff2, log_diff3, ...]
+                        % Actual: [cut1, cut1+exp(log_diff2), ...]
+                        rawThresholds = allParams(nBetas+1:end);
+                        result.rawThresholds = rawThresholds;
+                        cutpoints = zeros(size(rawThresholds));
+                        cutpoints(1) = rawThresholds(1);
+                        for i = 2:length(rawThresholds)
+                            cutpoints(i) = cutpoints(i-1) + exp(rawThresholds(i));
+                        end
+                        result.thresholds = cutpoints;
+                    end
+                    if ~isequal(bseAttr, py.None)
+                        allBse = double(bseAttr);
+                        result.stdErrors = allBse(1:nBetas);
+                        result.thresholdStdErrors = allBse(nBetas+1:end);
+                    end
+                end
+            catch ME
+                warning("pyBridge:ThresholdExtraction", "Failed to extract thresholds: %s", ME.message);
+            end
         end
         
         function result = poisson(y, X, options)
@@ -824,6 +934,7 @@
                 X double
                 options.addConstant logical = true
                 options.exposure double = [] % Exposure variable
+                options.covType string = "nonrobust"
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("statsmodels");
@@ -842,14 +953,21 @@
                 model = py.statsmodels.discrete.discrete_model.Poisson(yPy, XPy, exposure=exposurePy);
             end
             
-            fitResult = model.fit(disp=false);
+            fitResult = model.fit(pyargs("disp", false, "cov_type", char(options.covType)));
             
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "Poisson";
             
-            % Overdispersion test
-            result.overdispersionTest = double(fitResult.pearson_chi2 / fitResult.df_resid);
-            result.hasOverdispersion = result.overdispersionTest > 1.5;
+            % Overdispersion test - use py.getattr for safe attribute access
+            pearsonChi2Attr = py.getattr(fitResult, "pearson_chi2", py.None);
+            dfResidAttr = py.getattr(fitResult, "df_resid", py.None);
+            if ~isequal(pearsonChi2Attr, py.None) && ~isequal(dfResidAttr, py.None)
+                result.overdispersionTest = double(pearsonChi2Attr) / double(dfResidAttr);
+                result.hasOverdispersion = result.overdispersionTest > 1.5;
+            else
+                result.overdispersionTest = NaN;
+                result.hasOverdispersion = false;
+            end
         end
         
         function result = negativeBinomial(y, X, options)
@@ -1386,14 +1504,12 @@
                 pyModel = fitResult.pyModel;
             end
             
-            % Build parameters
-            margeffKwds = py.dict();
-            margeffKwds{"method"} = options.method;
-            margeffKwds{"at"} = options.at;
-            
             % Calculate marginal effects
             try
-                margeff = pyModel.get_margeff(kwargs=margeffKwds);
+                % Use pyrun to call get_margeff (MATLAB dot notation fails on wrapper __getattr__)
+                margeff = pyrun( ...
+                    "me = fit.get_margeff(at=at_val, method=meth_val)", "me", ...
+                    fit=pyModel, at_val=char(options.at), meth_val=char(options.method));
             catch ME
                 error("pyBridge:MargEffFailed", "Marginal effects calculation failed: %s", ME.message);
             end
