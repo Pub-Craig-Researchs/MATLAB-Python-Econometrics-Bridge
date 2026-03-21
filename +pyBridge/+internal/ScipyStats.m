@@ -13,8 +13,6 @@
     %   pdf = stats.normPDF(linspace(-3,3,100), 0, 1);
     %   tStat, pValue = stats.tTest(data1, data2);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     methods
         function obj = ScipyStats()

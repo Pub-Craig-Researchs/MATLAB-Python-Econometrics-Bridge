@@ -12,8 +12,6 @@
     %   result = pyBridge.EconmlWrapper.dml(Y, T, X, W);
     %   ate = result.ate;
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     methods(Static)
         %% Double Machine Learning

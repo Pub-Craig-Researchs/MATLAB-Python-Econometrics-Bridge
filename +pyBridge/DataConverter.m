@@ -21,8 +21,6 @@
     %   mlArray = pyBridge.DataConverter.toMatlab(pyArray);
     %   mlTable = pyBridge.DataConverter.df2Table(pyDf);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     methods(Static)
         function pyObj = toPython(mlData, options)

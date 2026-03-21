@@ -17,8 +17,6 @@
     %   % Optimization
     %   result = pyBridge.ScipyWrapper.optimize.minimize(objective, x0);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     properties(Constant)
         Stats = pyBridge.internal.ScipyStats()

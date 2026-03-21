@@ -20,8 +20,6 @@
     %   config.initialize();
     %   config.verifyAll();
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     properties
         pythonPath char = ""

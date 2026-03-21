@@ -1,7 +1,5 @@
 ﻿%% scipy Detailed Examples
 % This script demonstrates detailed usage of the PyBridge toolbox for scipy library
-% Author: WorkBuddy
-% Date: 2026-03-18
 
 %% Initialization
 addpath('..');

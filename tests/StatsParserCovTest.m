@@ -6,8 +6,6 @@
     % 2. ResultParser - Parsing statsmodels, numpy arrays, generic Python objects
     % 3. CovarianceTypes - HC standard errors, HAC, clustered, MLE sandwich estimators
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-20
     
     properties
         Tolerance       % Numeric comparison tolerance

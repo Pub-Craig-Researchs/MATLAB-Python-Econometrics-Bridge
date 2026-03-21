@@ -8,8 +8,6 @@
     %   pyFun = py.pyfunc.FitFunctionWrapper(fun);
     %   py.scipy.optimize.curve_fit(pyFun, xdata, ydata);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     properties
         matlabFunction function_handle

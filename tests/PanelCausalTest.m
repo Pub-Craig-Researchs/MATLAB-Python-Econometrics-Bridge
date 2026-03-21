@@ -5,8 +5,6 @@
     % 1. EconmlWrapper: DML, DR Learner, Meta Learners, Causal Forest
     % 2. LinearmodelsWrapper: Panel OLS, Random Effects, IV models, Hausman test
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-20
 
     properties
         HasEconml       % Whether econml is available

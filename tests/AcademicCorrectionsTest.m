@@ -1,5 +1,5 @@
 ﻿classdef AcademicCorrectionsTest < matlab.unittest.TestCase
-    % AcademicCorrectionsTest 学术标准化修正的验证测试
+    % AcademicCorrectionsTest 
     %
     % 测试覆盖:
     % 1. HAC小样本校正因子 (n/(n-k))
@@ -9,7 +9,6 @@
     % 5. ARIMA阶数参数验证
     % 6. Hausman检验 Sargan-Hansen VCE
     %
-    % 注意: 部分测试需要Python环境(statsmodels)
 
     properties
         WorkspacePath = fileparts(fileparts(mfilename('fullpath')))

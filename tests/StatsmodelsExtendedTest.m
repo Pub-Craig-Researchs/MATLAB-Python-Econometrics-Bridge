@@ -11,8 +11,6 @@
     % 7. Marginal effects calculation
     % 8. Durbin-Watson test
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-20
 
     properties
         HasPython       % Whether Python environment is available

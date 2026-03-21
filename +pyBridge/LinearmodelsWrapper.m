@@ -14,8 +14,6 @@
     % Example:
     %   result = pyBridge.LinearmodelsWrapper.panelOLS(y, X, entityIds, timeIds);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     methods(Static)
         %% Panel Data Models

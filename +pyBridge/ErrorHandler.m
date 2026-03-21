@@ -17,8 +17,6 @@
     %       pyBridge.ErrorHandler.handlePyError(ME);
     %   end
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     properties(Constant)
         ErrorTypes = dictionary( ...

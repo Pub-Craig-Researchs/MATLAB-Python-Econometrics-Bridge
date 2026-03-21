@@ -8,8 +8,6 @@
     %   pyFun = py.pyfunc.FunctionWrapper(fun, 'scalar');
     %   py.scipy.optimize.minimize(pyFun, [1; 1]);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     properties
         matlabFunction function_handle

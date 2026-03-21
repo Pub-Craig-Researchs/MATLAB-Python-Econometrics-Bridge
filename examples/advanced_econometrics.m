@@ -1,7 +1,6 @@
 ﻿%% Advanced Econometric Methods Example
 % Demonstrates Multinomial Logit, HAC Standard Errors, Multi-way Clustering
-% Author: WorkBuddy
-% Date: 2026-03-18
+
 
 %% Clear Workspace
 clear; clc;

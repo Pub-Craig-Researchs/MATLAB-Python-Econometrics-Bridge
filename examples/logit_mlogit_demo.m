@@ -13,8 +13,6 @@
 %   - Python with statsmodels package installed
 %   - pyBridge library in MATLAB path
 %
-% Author: pyBridge Example
-% Date: 2026-03
 
 %% Section 1: Data Generation
 % Generate simulated data for demonstrating Logit and MLogit models

@@ -16,8 +16,7 @@
     %   % Parse econml causal inference result
     %   ate = pyBridge.ResultParser.parseEconML(ateResult);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
+
     
     properties(Constant)
         % Common Python object type parsing strategies

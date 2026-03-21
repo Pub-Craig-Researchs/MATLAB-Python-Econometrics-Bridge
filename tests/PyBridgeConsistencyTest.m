@@ -9,8 +9,6 @@
     % 5. Marginal effects HAC standard errors and p-values
     % 6. Boundary conditions and error handling
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-20
     
     properties
         TestData        % Test data

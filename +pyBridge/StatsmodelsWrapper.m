@@ -12,8 +12,6 @@
     %   result = pyBridge.StatsmodelsWrapper.ols(y, X);
     %   pyBridge.ResultParser.printResult(result);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     methods(Static)
         %% Regression Analysis

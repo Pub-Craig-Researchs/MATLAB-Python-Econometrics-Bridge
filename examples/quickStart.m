@@ -1,7 +1,6 @@
 ﻿%% PyBridge Quick Start Example
 % This script demonstrates the basic usage of the PyBridge toolbox
-% Author: WorkBuddy
-% Date: 2026-03-18
+
 
 %% 1. Environment Setup
 fprintf("=== 1. Environment Setup ===\n");

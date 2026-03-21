@@ -8,8 +8,6 @@
     % 4. 边际效应的HAC标准误传播
     % 5. 与Python实现的完全一致性验证
     %
-    % 作者: WorkBuddy
-    % 日期: 2026-03-20
     
     properties
         TestData

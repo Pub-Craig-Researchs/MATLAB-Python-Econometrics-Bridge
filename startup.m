@@ -9,18 +9,22 @@
 % Author: WorkBuddy
 % Date: 2026-03-18
 
+    % Suppress Python-MATLAB method name conflict warnings during initialization
+    % These occur because Python objects (pandas/numpy) have methods
+    % with names that match MATLAB built-in functions (empty, reshape, sort, etc.)
+    % This is a known issue in MATLAB R2024b+ and does not affect functionality
+    warnState = warning('off', 'all');
+    
     % Get current directory (toolbox root)
     toolboxRoot = fileparts(mfilename('fullpath'));
     
     % Add toolbox to path
+    % Note: Package directories (+pyBridge, +pyfunc, etc.) should NOT be added to path
+    % Only the parent directory needs to be added - MATLAB will find packages automatically
     fprintf("Adding PyBridge toolbox to MATLAB path...\n");
     addpath(toolboxRoot);
     
-    % Add subdirectories
-    addpath(fullfile(toolboxRoot, '+pyBridge'));
-    addpath(fullfile(toolboxRoot, '+pyBridge', '+internal'));
-    addpath(fullfile(toolboxRoot, '+pyfunc'));
-    addpath(fullfile(toolboxRoot, '+py_builtin'));
+    % Add non-package subdirectories only
     addpath(fullfile(toolboxRoot, 'examples'));
     addpath(fullfile(toolboxRoot, 'tests'));
     
@@ -34,7 +38,9 @@
         results = config.verifyAll();
         
         % Check if all libraries are installed
-        allInstalled = all(strcmp(results.Status, 'Installed'));
+        % Status is a cell array of strings, use cellfun for comparison
+        isInstalled = cellfun(@(x) x == "Installed", results.Status);
+        allInstalled = all(isInstalled);
         
         if allInstalled
             fprintf("\nPyBridge toolbox started successfully!\n");
@@ -54,7 +60,7 @@
             fprintf("  pip install scipy statsmodels linearmodels econml numpy pandas scikit-learn\n\n");
             
             % Show missing libraries
-            missingLibs = results.Library(strcmp(results.Status, 'Not installed'));
+            missingLibs = results.Library(~isInstalled);
             fprintf("Missing libraries:\n");
             for i = 1:length(missingLibs)
                 fprintf("  - %s\n", missingLibs{i});
@@ -78,5 +84,8 @@
     fprintf("Test Status: 137 tests, 135 passing, 0 failures\n");
     fprintf("Compatibility: Python 3.13, linearmodels v7.0\n");
     fprintf("=====================================\n\n");
+    
+    % Restore warning state
+    warning(warnState);
     
 end

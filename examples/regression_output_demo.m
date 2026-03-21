@@ -2,8 +2,6 @@
 % Regression Output Formatting Example
 % Demonstrates Outreg2-style table output, Zero-Inflated Negative Binomial, MLogit robust SE
 %
-% Author: WorkBuddy
-% Date: 2026-03-18
 
 clear; close all; clc;
 

@@ -14,8 +14,6 @@
     %   b, a = sig.butter(4, 0.1, 'low');
     %   filtered = sig.filtfilt(b, a, data);
     %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     methods
         function obj = ScipySignal()

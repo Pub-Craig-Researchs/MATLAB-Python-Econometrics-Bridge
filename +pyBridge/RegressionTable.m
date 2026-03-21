@@ -17,9 +17,6 @@
     %   tbl.addZINB("ZINB", zinbResult, varNames={"X1", "X2"});
     %   tbl.display();
     %   tbl.toExcel("results.xlsx");
-    %
-    % Author: WorkBuddy
-    % Date: 2026-03-18
     
     properties
         models cell = {}            % Store all model results
@@ -33,6 +30,9 @@
         showStars logical = true    % Whether to show stars
         fontName char = "Times New Roman"  % Excel default font
         useAdjusted logical = false  % true: show Adj R²/Adj Pseudo R²; false: show R²/Pseudo R²
+        showAME logical = false     % true: show Average Marginal Effects for MLogit
+        showIC logical = true       % true: show AIC/BIC information criteria
+        bracketContent char = "se"  % "se" for standard errors, "t" for t/z-statistics
     end
     
     properties(Access = private)
@@ -99,6 +99,10 @@
             % Variable names
             if ~isempty(options.varNames)
                 varNames = string(options.varNames);
+                % Add constant term if params has more elements than varNames
+                if length(varNames) < length(params)
+                    varNames = ["const", varNames];
+                end
             elseif isfield(result, 'paramNames')
                 varNames = string(result.paramNames);
             else
@@ -128,6 +132,51 @@
             modelData.modelType = modelType;
             modelData.nColumns = 1;  % Single column model
             modelData.columnNames = {string(modelName)};
+            
+            % Handle binary Logit/Probit marginal effects
+            if isfield(result, 'marginalEffects') && ~isempty(result.marginalEffects)
+                modelData.hasAME = true;
+                
+                % margeffAt="all" returns (n_obs x n_vars) matrix
+                % Take mean across observations to get AME
+                meMatrix = result.marginalEffects;
+                if size(meMatrix, 1) > 1 && size(meMatrix, 2) > 1
+                    % Multiple observations: take column means
+                    ame = mean(meMatrix, 1);
+                    ame = ame(:);
+                else
+                    % Already a vector (margeffAt="mean")
+                    ame = meMatrix(:);
+                end
+                
+                % Binary Logit AME: convert to (n_vars x 2) matrix
+                % Column 1 = reference (zeros), Column 2 = effect (for y=1)
+                modelData.ame = [zeros(size(ame)), ame];  % (n_vars x 2)
+                
+                % AME variable names (exclude const)
+                ameVarNames = varNames(varNames ~= "const");
+                modelData.ameVarNames = ameVarNames;
+                
+                if isfield(result, 'marginalEffectsSE') && ~isempty(result.marginalEffectsSE)
+                    ameSE = result.marginalEffectsSE(:);
+                    modelData.ameSE = [zeros(size(ameSE)), ameSE];
+                else
+                    modelData.ameSE = [];
+                end
+                
+                if isfield(result, 'marginalEffectsP') && ~isempty(result.marginalEffectsP)
+                    ameP = result.marginalEffectsP(:);
+                    modelData.ameP = [ones(size(ameP)), ameP];
+                else
+                    modelData.ameP = [];
+                end
+            else
+                modelData.hasAME = false;
+                modelData.ame = [];
+                modelData.ameSE = [];
+                modelData.ameP = [];
+                modelData.ameVarNames = string.empty;
+            end
             
             obj.models{end+1} = modelData;
             obj.modelNames = [obj.modelNames, string(modelName)];
@@ -261,6 +310,26 @@
             modelData.note = options.note;
             modelData.covType = options.covType;
             modelData.referenceName = options.referenceName;
+            
+            % Store AME data if available
+            if isfield(result, 'marginalEffects') && ~isempty(result.marginalEffects)
+                modelData.hasAME = true;
+                modelData.ame = result.marginalEffects;  % (n_vars x n_categories)
+                if isfield(result, 'marginalEffectsSE')
+                    modelData.ameSE = result.marginalEffectsSE;
+                else
+                    modelData.ameSE = [];
+                end
+                if isfield(result, 'marginalEffectsP')
+                    modelData.ameP = result.marginalEffectsP;
+                else
+                    modelData.ameP = [];
+                end
+                % AME variable names (excluding const)
+                modelData.ameVarNames = varNames(varNames ~= "const");
+            else
+                modelData.hasAME = false;
+            end
             
             obj.models{end+1} = modelData;
             obj.isMultiColumnModel = true;
@@ -549,6 +618,8 @@
                 vn = newVarNames(i);
                 if ~ismember(vn, obj.allVarNames)
                     obj.allVarNames = [obj.allVarNames, vn];
+                    % Also add to varOrder
+                    obj.varOrder = [obj.varOrder, vn];
                 end
             end
             if isempty(obj.varOrder)
@@ -576,14 +647,60 @@
             colSubIdx = cell2mat(subIdx);
         end
         
+        function displayOrder = reorderVariables(obj)
+            % Reorder variables: unique vars first, shared vars next, const last
+            % Unique vars = appear in only one model
+            % Shared vars = appear in multiple models
+            
+            allVars = obj.varOrder;
+            nModels = length(obj.models);
+            
+            % Count how many models each variable appears in
+            varCounts = zeros(1, length(allVars));
+            for i = 1:length(allVars)
+                vn = allVars(i);
+                for j = 1:nModels
+                    model = obj.models{j};
+                    if ismember(vn, model.varNames)
+                        varCounts(i) = varCounts(i) + 1;
+                    end
+                end
+            end
+            
+            % Separate into unique, shared, and const
+            uniqueVars = string.empty;
+            sharedVars = string.empty;
+            hasConst = false;
+            
+            for i = 1:length(allVars)
+                vn = allVars(i);
+                if vn == "const"
+                    hasConst = true;
+                elseif varCounts(i) == 1
+                    uniqueVars = [uniqueVars, vn]; %#ok<AGROW>
+                else
+                    sharedVars = [sharedVars, vn]; %#ok<AGROW>
+                end
+            end
+            
+            % Build final order: unique first, shared next, const last
+            displayOrder = [uniqueVars, sharedVars];
+            if hasConst
+                displayOrder = [displayOrder, "const"];
+            end
+        end
+        
         function tableStr = buildConsoleTable(obj)
             % Build console table
             
             [nTotalCols, colModelIdx, colSubIdx] = obj.getTotalColumns();
-            nVars = length(obj.varOrder);
+            
+            % Reorder variables: unique vars first, shared vars next, const last
+            displayOrder = obj.reorderVariables();
+            nVars = length(displayOrder);
             
             % Calculate column width considering both variable names and stat labels
-            varColWidth = max([12, max(strlength(obj.varOrder)) + 2]);
+            varColWidth = max([12, max(strlength(displayOrder)) + 2]);
             % Also consider stat label widths
             statList = obj.getStatDisplayList();
             for sk = 1:length(statList)
@@ -642,7 +759,7 @@
             
             % Variable coefficients and standard errors
             for i = 1:nVars
-                varName = obj.varOrder(i);
+                varName = displayOrder(i);
                 
                 % Coefficient row
                 coefStr = sprintf("%-*s", varColWidth, varName);
@@ -662,10 +779,17 @@
                         else
                             coefFormatted = sprintf("%.*f", obj.decimalCoef, coef);
                         end
-                        seFormatted = sprintf("(%.*f)", obj.decimalSE, se);
+                        
+                        % Bracket content: SE or t/z-statistic
+                        if strcmp(obj.bracketContent, "t")
+                            tStat = coef / se;
+                            bracketFormatted = sprintf("[%.*f]", obj.decimalSE, tStat);
+                        else
+                            bracketFormatted = sprintf("(%.*f)", obj.decimalSE, se);
+                        end
                         
                         coefStr = coefStr + sprintf("  %*s", modelColWidth, coefFormatted);
-                        seStr = seStr + sprintf("  %*s", modelColWidth, seFormatted);
+                        seStr = seStr + sprintf("  %*s", modelColWidth, bracketFormatted);
                     else
                         coefStr = coefStr + sprintf("  %*s", modelColWidth, "");
                         seStr = seStr + sprintf("  %*s", modelColWidth, "");
@@ -678,6 +802,11 @@
             
             % Separator line
             lines{end+1} = headerLine;
+            
+            % AME section (if enabled and available)
+            if obj.showAME
+                lines = obj.addAMEToConsole(lines, varColWidth, modelColWidth, nTotalCols, colModelIdx, colSubIdx, headerLine);
+            end
             
             % Statistics
             lines = obj.addStatsToConsole(lines, varColWidth, modelColWidth, nTotalCols, colModelIdx);
@@ -713,6 +842,130 @@
                     se = model.stdErrors(idx(1));
                     p = model.pValues(idx(1));
                 end
+            end
+        end
+        
+        function lines = addAMEToConsole(obj, lines, varColWidth, modelColWidth, nTotalCols, colModelIdx, colSubIdx, headerLine)
+            % Add Average Marginal Effects section to console output
+            % AME displayed in parallel columns like coefficients
+            
+            % Check if any model has AME data
+            hasAnyAME = any(cellfun(@(m) isfield(m, 'hasAME') && m.hasAME, obj.models));
+            if ~hasAnyAME
+                return;
+            end
+            
+            % Use same variable order as coefficient table (excluding const)
+            displayOrder = obj.reorderVariables();
+            allAMEVarNames = displayOrder(displayOrder ~= "const");
+            
+            if isempty(allAMEVarNames)
+                return;
+            end
+            
+            % AME section header
+            lines{end+1} = "";
+            lines{end+1} = "Average Marginal Effects (AME):";
+            lines{end+1} = headerLine;
+            
+            % Header row for AME (same as coefficient columns)
+            ameHeaderStr = sprintf("%-*s", varColWidth, "");
+            for c = 1:nTotalCols
+                model = obj.models{colModelIdx(c)};
+                if model.nColumns == 1
+                    ameHeaderStr = ameHeaderStr + sprintf("  %*s", modelColWidth, string(model.name));
+                else
+                    ameHeaderStr = ameHeaderStr + sprintf("  %*s", modelColWidth, model.columnNames{colSubIdx(c)});
+                end
+            end
+            lines{end+1} = ameHeaderStr;
+            lines{end+1} = headerLine;
+            
+            % AME values for each variable
+            for i = 1:length(allAMEVarNames)
+                varName = allAMEVarNames(i);
+                
+                % AME coefficient row
+                ameCoefStr = sprintf("%-*s", varColWidth, varName);
+                ameSeStr = sprintf("%-*s", varColWidth, "");
+                
+                for c = 1:nTotalCols
+                    modelIdx = colModelIdx(c);
+                    subIdx = colSubIdx(c);
+                    model = obj.models{modelIdx};
+                    
+                    [ameVal, ameSE, ameP] = obj.getAME(model, varName, subIdx);
+                    
+                    if ~isempty(ameVal)
+                        stars = obj.getStars(ameP);
+                        if obj.showStars
+                            ameFormatted = sprintf("%.*f%s", obj.decimalCoef, ameVal, stars);
+                        else
+                            ameFormatted = sprintf("%.*f", obj.decimalCoef, ameVal);
+                        end
+                        ameCoefStr = ameCoefStr + sprintf("  %*s", modelColWidth, ameFormatted);
+                        
+                        % SE or t/z
+                        if ~isempty(ameSE) && ameSE > 0
+                            if strcmp(obj.bracketContent, "t")
+                                tStat = ameVal / ameSE;
+                                bracketFormatted = sprintf("[%.*f]", obj.decimalSE, tStat);
+                            else
+                                bracketFormatted = sprintf("(%.*f)", obj.decimalSE, ameSE);
+                            end
+                            ameSeStr = ameSeStr + sprintf("  %*s", modelColWidth, bracketFormatted);
+                        else
+                            ameSeStr = ameSeStr + sprintf("  %*s", modelColWidth, "");
+                        end
+                    else
+                        ameCoefStr = ameCoefStr + sprintf("  %*s", modelColWidth, "");
+                        ameSeStr = ameSeStr + sprintf("  %*s", modelColWidth, "");
+                    end
+                end
+                
+                lines{end+1} = ameCoefStr; %#ok<AGROW>
+                lines{end+1} = ameSeStr; %#ok<AGROW>
+            end
+            
+            lines{end+1} = headerLine;
+        end
+        
+        function [ameVal, ameSE, ameP] = getAME(~, model, varName, subIdx)
+            % Get AME value for specified variable and column
+            % For MLogit, subIdx corresponds to category (1=cat1, 2=cat2, etc.)
+            % AME matrix is (n_vars x n_categories), where col 1 is reference level
+            ameVal = [];
+            ameSE = [];
+            ameP = [];
+            
+            if ~isfield(model, 'hasAME') || ~model.hasAME
+                return;
+            end
+            
+            % Find variable index in AME
+            varIdx = find(model.ameVarNames == varName);
+            if isempty(varIdx)
+                return;
+            end
+            varIdx = varIdx(1);
+            
+            % For MLogit, AME column index = subIdx + 1 (skip reference level)
+            % subIdx=1 -> bubble=1 -> AME col 2
+            % subIdx=2 -> bubble=2 -> AME col 3
+            ameColIdx = subIdx + 1;
+            
+            if ameColIdx > size(model.ame, 2)
+                return;
+            end
+            
+            ameVal = model.ame(varIdx, ameColIdx);
+            
+            if ~isempty(model.ameSE) && size(model.ameSE, 1) >= varIdx && size(model.ameSE, 2) >= ameColIdx
+                ameSE = model.ameSE(varIdx, ameColIdx);
+            end
+            
+            if ~isempty(model.ameP) && size(model.ameP, 1) >= varIdx && size(model.ameP, 2) >= ameColIdx
+                ameP = model.ameP(varIdx, ameColIdx);
             end
         end
         
@@ -1148,9 +1401,11 @@
             statList{end+1} = {"rSquaredOverall", "Overall R-squared", false};
             statList{end+1} = {"rSquaredBetween", "Between R-squared", false};
             
-            % Information criteria
-            statList{end+1} = {"aic", "AIC", false};
-            statList{end+1} = {"bic", "BIC", false};
+            % Information criteria (controlled by showIC)
+            if obj.showIC
+                statList{end+1} = {"aic", "AIC", false};
+                statList{end+1} = {"bic", "BIC", false};
+            end
             
             % Other
             statList{end+1} = {"fStatistic", "F-statistic", false};
