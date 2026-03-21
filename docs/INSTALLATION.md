@@ -1,159 +1,159 @@
-# PyBridge安装指南
+# PyBridge Installation Guide
 
-## 系统要求
+## System Requirements
 
-- **MATLAB**: R2020b或更高版本
-- **Python**: 3.7+ (推荐3.9、3.10或**3.13**)
-  - **Python 3.13 兼容性**: 已通过 MATLAB R2025b 测试，功能完全正常（虽然 MathWorks 官方尚未正式支持）
-- **操作系统**: Windows / macOS / Linux
+- **MATLAB**: R2020b or later
+- **Python**: 3.7+ (Recommended: 3.9, 3.10, or **3.13**)
+  - **Python 3.13 Compatibility**: Tested with MATLAB R2025b, fully functional (although not officially supported by MathWorks yet)
+- **Operating System**: Windows / macOS / Linux
 
-## 安装步骤
+## Installation Steps
 
-### 1. 安装Python环境
+### 1. Install Python Environment
 
-推荐使用Miniconda或Anaconda:
+Miniconda or Anaconda is recommended:
 
 ```bash
-# 下载并安装Miniconda
+# Download and install Miniconda
 # https://docs.conda.io/en/latest/miniconda.html
 
-# 创建虚拟环境(可选但推荐)
+# Create a virtual environment (optional but recommended)
 conda create -n pybridge python=3.9
 conda activate pybridge
 ```
 
-### 2. 安装Python依赖库
+### 2. Install Python Dependencies
 
 ```bash
 pip install scipy statsmodels linearmodels econml numpy pandas scikit-learn
 ```
 
-或使用conda:
+Or using conda:
 
 ```bash
 conda install -c conda-forge scipy statsmodels numpy pandas scikit-learn
 pip install linearmodels econml
 ```
 
-### 3. 配置MATLAB Python接口
+### 3. Configure MATLAB Python Interface
 
-在MATLAB中运行:
+Run in MATLAB:
 
 ```matlab
-% 方法1: 直接配置
+% Method 1: Direct configuration
 pyenv('Version', 'path/to/python.exe')
 
-% 方法2: 如果使用conda
+% Method 2: If using conda
 pyenv('Version', 'path/to/conda/envs/pybridge/python.exe')
 
-% 验证
+% Verify
 pyenv
 ```
 
-### 4. 安装PyBridge工具箱
+### 4. Install PyBridge Toolbox
 
 ```matlab
-% 方法1: 克隆或下载到本地
-% 将工具箱放在任意目录,例如:
+% Method 1: Clone or download locally
+% Place the toolbox in any directory, for example:
 % c:/Users/YourName/Documents/GitHub/MATLAB-Python-Econometrics-Bridge
 
-% 方法2: 在MATLAB中运行启动脚本
+% Method 2: Run the startup script in MATLAB
 cd('path/to/MATLAB-Python-Econometrics-Bridge')
 startup()
 ```
 
-### 5. 验证安装
+### 5. Verify Installation
 
 ```matlab
-% 运行快速测试
+% Run quick test
 config = pyBridge.PyBridgeConfig();
 config.initialize();
 config.verifyAll();
 
-% 运行示例脚本
+% Run example script
 run('examples/quickStart.m')
 ```
 
-## 常见问题
+## Frequently Asked Questions
 
-### Q1: pyenv报错"Python版本不兼容"
+### Q1: pyenv reports "Python version incompatible"
 
-**解决方法:**
+**Solution:**
 ```matlab
-% 检查Python版本
+% Check Python version
 pe = pyenv;
 if contains(pe.Version, '3.7') || contains(pe.Version, '3.8') || ...
    contains(pe.Version, '3.9') || contains(pe.Version, '3.10') || ...
    contains(pe.Version, '3.11') || contains(pe.Version, '3.12') || ...
    contains(pe.Version, '3.13')
-    disp('Python版本兼容');
+    disp('Python version compatible');
 else
-    error('需要Python 3.7-3.13');
+    error('Python 3.7-3.13 required');
 end
 ```
 
-### Q2: 导入库失败
+### Q2: Library import failed
 
-**解决方法:**
+**Solution:**
 ```bash
-# 检查库是否已安装
+# Check if the library is installed
 python -c "import scipy; print(scipy.__version__)"
 
-# 如果未安装,重新安装
+# If not installed, reinstall
 pip install --upgrade scipy
 ```
 
-### Q3: MATLAB找不到Python模块
+### Q3: MATLAB cannot find Python module
 
-**解决方法:**
+**Solution:**
 ```matlab
-% 设置Python路径
+% Set Python path
 if count(py.sys.path, 'your/module/path') == 0
     insert(py.sys.path, int32(0), 'your/module/path');
 end
 ```
 
-### Q4: 数据转换错误
+### Q4: Data conversion error
 
-**解决方法:**
-- 确保NumPy和Pandas已正确安装
-- 检查数据类型是否支持
-- 使用`pyBridge.DataConverter.printConversionInfo()`调试
+**Solution:**
+- Ensure NumPy and Pandas are properly installed
+- Check if the data type is supported
+- Use `pyBridge.DataConverter.printConversionInfo()` for debugging
 
-### Q5: 性能问题
+### Q5: Performance issues
 
-**优化建议:**
-- 避免频繁的MATLAB-Python数据转换
-- 批量处理数据而非逐个处理
-- 对大型数据集使用分块处理
-- 考虑使用`py.array.array`而非list
+**Optimization tips:**
+- Avoid frequent MATLAB-Python data conversions
+- Process data in batches instead of one by one
+- Use chunked processing for large datasets
+- Consider using `py.array.array` instead of list
 
-## 卸载
+## Uninstall
 
 ```matlab
-% 从MATLAB路径移除
+% Remove from MATLAB path
 rmpath('path/to/MATLAB-Python-Econometrics-Bridge');
 
-% 删除工具箱文件夹
-% 在系统文件管理器中删除即可
+% Delete the toolbox folder
+% Simply delete it in your system file manager
 ```
 
-## 更新
+## Update
 
 ```bash
-# 更新Python库
+# Update Python libraries
 pip install --upgrade scipy statsmodels linearmodels econml
 
-# 更新工具箱
-# 重新下载最新版本并替换原文件夹
+# Update the toolbox
+# Re-download the latest version and replace the original folder
 ```
 
-## 技术支持
+## Technical Support
 
-- GitHub Issues: [项目地址]
-- 文档: `docs/API_REFERENCE.md`
-- 示例: `examples/` 目录
+- GitHub Issues: [Project Repository]
+- Documentation: `docs/API_REFERENCE.md`
+- Examples: `examples/` directory
 
 ---
 
-**安装问题反馈**: 请提供完整的错误信息和系统环境
+**Installation Issue Feedback**: Please provide complete error messages and system environment information

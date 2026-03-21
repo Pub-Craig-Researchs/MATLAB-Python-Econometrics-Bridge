@@ -1,155 +1,155 @@
-# PyBridge API参考文档
+# PyBridge API Reference
 
-## 目录
+## Table of Contents
 
-1. [核心组件](#核心组件)
-2. [scipy封装](#scipy封装)
-3. [statsmodels封装](#statsmodels封装)
-4. [linearmodels封装](#linearmodels封装)
-5. [econml封装](#econml封装)
-6. [高级计量方法](#高级计量方法)
+1. [Core Components](#core-components)
+2. [scipy Wrapper](#scipy-wrapper)
+3. [statsmodels Wrapper](#statsmodels-wrapper)
+4. [linearmodels Wrapper](#linearmodels-wrapper)
+5. [econml Wrapper](#econml-wrapper)
+6. [Advanced Econometric Methods](#advanced-econometric-methods)
 
 ---
 
-## 核心组件
+## Core Components
 
 ### PyBridgeConfig
 
-环境配置和库验证类。
+Environment configuration and library verification class.
 
-#### 构造函数
+#### Constructor
 
 ```matlab
 config = pyBridge.PyBridgeConfig(pythonPath)
 ```
 
-**参数:**
-- `pythonPath` (可选): Python可执行文件路径,默认自动检测当前Python环境
+**Parameters:**
+- `pythonPath` (optional): Python executable path, automatically detects current Python environment by default
 
-#### 方法
+#### Methods
 
-| 方法 | 说明 |
-|------|------|
-| `initialize()` | 初始化Python环境 |
-| `checkLibrary(libName)` | 检查指定库是否安装 |
-| `getLibVersion(libName)` | 获取库版本信息 |
-| `verifyAll()` | 验证所有必需库,返回table |
-| `printInfo()` | 打印环境信息 |
+| Method | Description |
+|--------|-------------|
+| `initialize()` | Initialize Python environment |
+| `checkLibrary(libName)` | Check if specified library is installed |
+| `getLibVersion(libName)` | Get library version information |
+| `verifyAll()` | Verify all required libraries, returns table |
+| `printInfo()` | Print environment information |
 
-#### 静态方法
+#### Static Methods
 
-| 方法 | 说明 |
-|------|------|
-| `getInstance()` | 获取单例实例 |
-| `quickCheck()` | 快速检查环境是否就绪 |
+| Method | Description |
+|--------|-------------|
+| `getInstance()` | Get singleton instance |
+| `quickCheck()` | Quick check if environment is ready |
 
 ---
 
 ### DataConverter
 
-MATLAB-Python数据双向转换工具。
+MATLAB-Python bidirectional data conversion tool.
 
 ---
 
-## 高级计量方法
+## Advanced Econometric Methods
 
-### CovarianceTypes - 协方差矩阵计算
+### CovarianceTypes - Covariance Matrix Computation
 
-提供多种稳健标准误计算方法,位于 `pyBridge.internal.CovarianceTypes`。
+Provides multiple robust standard error calculation methods, located in `pyBridge.internal.CovarianceTypes`.
 
-#### HAC标准误 (Newey-West)
+#### HAC Standard Errors (Newey-West)
 
 ```matlab
 covMatrix = pyBridge.internal.CovarianceTypes.hac(residuals, X, options)
 ```
 
-**参数:**
-- `residuals`: 回归残差
-- `X`: 设计矩阵
-- `options.maxLags`: 最大滞后阶数（默认自动选择）
-- `options.kernel`: 核函数类型
-  - `"bartlett"` - Bartlett核（默认，等价于Newey-West）
-  - `"newey-west"` - Newey-West核（内部映射为bartlett）
-  - `"parzen"` - Parzen核
-  - `"qs"` - 二次谱核
+**Parameters:**
+- `residuals`: Regression residuals
+- `X`: Design matrix
+- `options.maxLags`: Maximum lag order (default: auto-selected)
+- `options.kernel`: Kernel function type
+  - `"bartlett"` - Bartlett kernel (default, equivalent to Newey-West)
+  - `"newey-west"` - Newey-West kernel (internally mapped to bartlett)
+  - `"parzen"` - Parzen kernel
+  - `"qs"` - Quadratic spectral kernel
 
-**注意事项:**
-- `newey-west` 在内部映射为 `bartlett`，两者等价
-- `parzen` 和 `qs` 核在离散选择模型（MNLogit/Logit/Probit）中不支持，会自动回退到 `bartlett` 并发出警告
+**Notes:**
+- `newey-west` is internally mapped to `bartlett`, both are equivalent
+- `parzen` and `qs` kernels are not supported in discrete choice models (MNLogit/Logit/Probit), will automatically fall back to `bartlett` with a warning
 
-**返回:**
-- `covMatrix`: HAC协方差矩阵
+**Returns:**
+- `covMatrix`: HAC covariance matrix
 
-**示例:**
+**Example:**
 ```matlab
-% 先拟合OLS
+% First fit OLS
 result = pyBridge.StatsmodelsWrapper.ols(y, X);
 residuals = result.residuals;
 
-% 计算HAC标准误（默认使用bartlett核）
+% Compute HAC standard errors (default uses bartlett kernel)
 covHAC = pyBridge.internal.CovarianceTypes.hac(residuals, X, ...
     maxLags=4, kernel="bartlett");
 stdErrorsHAC = sqrt(diag(covHAC));
 ```
 
-#### 聚类标准误
+#### Clustered Standard Errors
 
 ```matlab
 covMatrix = pyBridge.internal.CovarianceTypes.clustered(residuals, X, clusterIds)
 ```
 
-**参数:**
-- `residuals`: 回归残差
-- `X`: 设计矩阵
-- `clusterIds`: 聚类标识符向量
-- `options.useCorrection`: 是否使用小样本校正(默认true)
+**Parameters:**
+- `residuals`: Regression residuals
+- `X`: Design matrix
+- `clusterIds`: Cluster identifier vector
+- `options.useCorrection`: Whether to use small sample correction (default: true)
 
-**示例:**
+**Example:**
 ```matlab
-% 按企业聚类
-firmIds = [1,1,1,2,2,2,...]; % 企业ID
+% Cluster by firm
+firmIds = [1,1,1,2,2,2,...]; % Firm IDs
 covCluster = pyBridge.internal.CovarianceTypes.clustered(...
     residuals, X, firmIds);
 ```
 
-#### 多维聚类标准误
+#### Multi-way Clustered Standard Errors
 
 ```matlab
 covMatrix = pyBridge.internal.CovarianceTypes.multiwayClustered(...
     residuals, X, clusterGroups)
 ```
 
-**参数:**
-- `clusterGroups`: cell数组,包含多个聚类维度
-  - 例如: `{firmIds, yearIds}` 表示企业×年份双向聚类
+**Parameters:**
+- `clusterGroups`: Cell array containing multiple clustering dimensions
+  - e.g., `{firmIds, yearIds}` for firm × year two-way clustering
 
-**示例:**
+**Example:**
 ```matlab
-% 双向聚类:企业×年份
+% Two-way clustering: firm × year
 covMultiway = pyBridge.internal.CovarianceTypes.multiwayClustered(...
     residuals, X, {firmIds, yearIds});
 
-% 三维聚类:企业×年份×行业
+% Three-way clustering: firm × year × industry
 covMultiway3 = pyBridge.internal.CovarianceTypes.multiwayClustered(...
     residuals, X, {firmIds, yearIds, industryIds});
 ```
 
-#### 异方差稳健标准误 (HC系列)
+#### Heteroskedasticity-Robust Standard Errors (HC Series)
 
 ```matlab
 covMatrix = pyBridge.internal.CovarianceTypes.heteroskedastic(residuals, X, type)
 ```
 
-**参数:**
-- `type`: HC类型
-  - `"HC0"` - White标准误
-  - `"HC1"` - Stata小样本校正(推荐)
-  - `"HC2"` - 适合小样本
-  - `"HC3"` - 最保守,极度异方差
+**Parameters:**
+- `type`: HC type
+  - `"HC0"` - White standard errors
+  - `"HC1"` - Stata small sample correction (recommended)
+  - `"HC2"` - Suitable for small samples
+  - `"HC3"` - Most conservative, for severe heteroskedasticity
 
 ---
 
-### StatsmodelsWrapper - 高级回归方法
+### StatsmodelsWrapper - Advanced Regression Methods
 
 #### Multinomial Logit
 
@@ -157,43 +157,43 @@ covMatrix = pyBridge.internal.CovarianceTypes.heteroskedastic(residuals, X, type
 result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, options)
 ```
 
-**参数:**
-- `y`: 多分类因变量（整数编码: 0, 1, 2, ..., K-1）
-- `X`: 自变量矩阵
-- `options.addConstant`: 是否添加常数项（默认true）
-- `options.maxIter`: 最大迭代次数（默认100）
-- `options.covType`: 协方差矩阵类型（可选）
-  - `"nonrobust"` - 经典标准误（默认）
-  - `"HC0"`, `"HC1"`, `"HC2"`, `"HC3"` - 异方差稳健标准误
-  - `"hac"` - HAC标准误（仅支持bartlett核）
-- `options.covKwds`: HAC参数（当covType="hac"时使用）
-  - `covKwds.maxlags`: 最大滞后阶数
-  - `covKwds.kernel`: 核函数（仅支持"bartlett"）
+**Parameters:**
+- `y`: Multi-category dependent variable (integer encoded: 0, 1, 2, ..., K-1)
+- `X`: Independent variable matrix
+- `options.addConstant`: Whether to add constant term (default: true)
+- `options.maxIter`: Maximum iterations (default: 100)
+- `options.covType`: Covariance matrix type (optional)
+  - `"nonrobust"` - Classical standard errors (default)
+  - `"HC0"`, `"HC1"`, `"HC2"`, `"HC3"` - Heteroskedasticity-robust standard errors
+  - `"hac"` - HAC standard errors (only bartlett kernel supported)
+- `options.covKwds`: HAC parameters (used when covType="hac")
+  - `covKwds.maxlags`: Maximum lag order
+  - `covKwds.kernel`: Kernel function (only "bartlett" supported)
 
-**返回字段:**
-- `params`: 系数矩阵((K-1) × p)
-- `stdErrors`: 标准误
-- `tStatistics`: t统计量
-- `pValues`: p值
-- `probabilities`: 预测概率(n × K)
-- `marginalEffects`: 边际效应
-- `marginalEffectsSE`: 边际效应标准误
-- `marginalEffectsP`: 边际效应p值
-- `marginalEffectsT`: 边际效应t统计量
-- `nCategories`: 类别数量
+**Return Fields:**
+- `params`: Coefficient matrix ((K-1) × p)
+- `stdErrors`: Standard errors
+- `tStatistics`: t-statistics
+- `pValues`: p-values
+- `probabilities`: Predicted probabilities (n × K)
+- `marginalEffects`: Marginal effects
+- `marginalEffectsSE`: Marginal effects standard errors
+- `marginalEffectsP`: Marginal effects p-values
+- `marginalEffectsT`: Marginal effects t-statistics
+- `nCategories`: Number of categories
 
-**HAC标准误支持说明:**
-- MNLogit支持HAC标准误，但仅限于 `bartlett` 核
-- `parzen` 和 `qs` 核不支持，会自动回退到 `bartlett` 并发出警告
+**HAC Standard Errors Support Notes:**
+- MNLogit supports HAC standard errors, but only with `bartlett` kernel
+- `parzen` and `qs` kernels are not supported, will automatically fall back to `bartlett` with a warning
 
-**示例:**
+**Example:**
 ```matlab
-% 职业选择模型（蓝领=0, 白领=1, 专业=2）
+% Occupational choice model (blue-collar=0, white-collar=1, professional=2)
 y = [0; 1; 2; 0; 1; ...];
 X = [education, experience, age];
 result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X);
 
-% 使用HAC标准误
+% Using HAC standard errors
 resultHAC = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
     covType="hac", covKwds=struct('maxlags', 4, 'kernel', 'bartlett'));
 ```
@@ -205,161 +205,161 @@ result = pyBridge.StatsmodelsWrapper.orderedLogit(y, X, options)
 result = pyBridge.StatsmodelsWrapper.orderedProbit(y, X, options)
 ```
 
-**参数:**
-- `y`: 有序因变量(整数编码: 0, 1, 2, ..., K-1)
-- `X`: 自变量矩阵
-- `options.addConstant` (logical, default: **false**): 是否添加常数项。注意: OrderedModel 不允许 X 中包含常数列（阈值参数作为截距）
-- `options.maxIter` (double, default: **1000**): MLE优化的最大迭代次数
-- `options.covType` (string, default: "nonrobust"): 协方差矩阵类型: "nonrobust", "HC0", "HC1", "HC2", "HC3"
+**Parameters:**
+- `y`: Ordered dependent variable (integer encoded: 0, 1, 2, ..., K-1)
+- `X`: Independent variable matrix
+- `options.addConstant` (logical, default: **false**): Whether to add constant term. Note: OrderedModel does not allow constant column in X (threshold parameters serve as intercepts)
+- `options.maxIter` (double, default: **1000**): Maximum iterations for MLE optimization
+- `options.covType` (string, default: "nonrobust"): Covariance matrix type: "nonrobust", "HC0", "HC1", "HC2", "HC3"
 
-**返回字段:**
-- `coefficients`: 回归系数（不含阈值）
-- `stdErrors`: 系数标准误
-- `thresholds`: 实际切点（转换为Stata约定格式）
-- `rawThresholds`: 原始statsmodels参数化格式（log-diff格式）
-- `thresholdStdErrors`: 阈值标准误
-- `params`: 系数估计（与coefficients相同）
-- `tStatistics`: t统计量
-- `pValues`: p值
+**Return Fields:**
+- `coefficients`: Regression coefficients (excluding thresholds)
+- `stdErrors`: Coefficient standard errors
+- `thresholds`: Actual cutpoints (converted to Stata convention format)
+- `rawThresholds`: Original statsmodels parameterization format (log-diff format)
+- `thresholdStdErrors`: Threshold standard errors
+- `params`: Coefficient estimates (same as coefficients)
+- `tStatistics`: t-statistics
+- `pValues`: p-values
 
-**示例:**
+**Example:**
 ```matlab
-% 满意度评级(不满意=0, 一般=1, 满意=2, 非常满意=3)
+% Satisfaction rating (dissatisfied=0, neutral=1, satisfied=2, very satisfied=3)
 y = [0; 1; 2; 3; 1; ...];
 % Note: addConstant=false by default (OrderedModel uses thresholds as intercepts)
 result = pyBridge.StatsmodelsWrapper.orderedLogit(y, X);
-fprintf('阈值: ');
+fprintf('Thresholds: ');
 disp(result.thresholds);
 
-% 使用稳健标准误
+% Using robust standard errors
 result = pyBridge.StatsmodelsWrapper.orderedLogit(y, X, covType="HC1");
 ```
 
-#### Poisson回归
+#### Poisson Regression
 
 ```matlab
 result = pyBridge.StatsmodelsWrapper.poisson(y, X, options)
 ```
 
-**参数:**
-- `y`: 计数数据
-- `X`: 自变量矩阵
-- `options.addConstant` (logical, default: **true**): 是否添加常数项
-- `options.exposure`: 暴露变量(可选)
-- `options.covType` (string, default: "nonrobust"): 协方差矩阵类型: "nonrobust", "HC0", "HC1", "HC2", "HC3"
+**Parameters:**
+- `y`: Count data
+- `X`: Independent variable matrix
+- `options.addConstant` (logical, default: **true**): Whether to add constant term
+- `options.exposure`: Exposure variable (optional)
+- `options.covType` (string, default: "nonrobust"): Covariance matrix type: "nonrobust", "HC0", "HC1", "HC2", "HC3"
 
-**返回字段:**
-- `params`: 系数估计
-- `stdErrors`: 标准误
-- `tStatistics`: t统计量
-- `pValues`: p值
-- `overdispersionTest`: 过度离散检验统计量
-- `hasOverdispersion`: 是否存在过度离散(>1.5)
+**Return Fields:**
+- `params`: Coefficient estimates
+- `stdErrors`: Standard errors
+- `tStatistics`: t-statistics
+- `pValues`: p-values
+- `overdispersionTest`: Overdispersion test statistic
+- `hasOverdispersion`: Whether overdispersion exists (>1.5)
 
-**示例:**
+**Example:**
 ```matlab
-% 医院就诊次数
+% Hospital visit counts
 y = [0; 2; 5; 1; 3; ...];
 result = pyBridge.StatsmodelsWrapper.poisson(y, X);
 
 if result.hasOverdispersion
-    fprintf('存在过度离散,建议使用负二项回归\n');
+    fprintf('Overdispersion detected, consider using Negative Binomial regression\n');
 end
 
-% 使用稳健标准误
+% Using robust standard errors
 result = pyBridge.StatsmodelsWrapper.poisson(y, X, covType="HC1");
 ```
 
-#### Negative Binomial回归
+#### Negative Binomial Regression
 
 ```matlab
 result = pyBridge.StatsmodelsWrapper.negativeBinomial(y, X)
 ```
 
-**返回字段:**
-- `alpha`: 过度离散参数
-- 其他字段同Poisson回归
+**Return Fields:**
+- `alpha`: Overdispersion parameter
+- Other fields same as Poisson regression
 
 ---
 
-### StatsmodelsWrapper.ols - 高级标准误选项
+### StatsmodelsWrapper.ols - Advanced Standard Error Options
 
-OLS方法支持多种标准误类型:
+OLS method supports multiple standard error types:
 
 ```matlab
 result = pyBridge.StatsmodelsWrapper.ols(y, X, options)
 ```
 
-**标准误类型 (`options.covType`):**
+**Standard Error Types (`options.covType`):**
 
-| 类型 | 说明 | 额外参数 |
-|------|------|---------|
-| `"nonrobust"` | 经典标准误 | - |
-| `"HC0"` | White标准误 | - |
-| `"HC1"` | Stata稳健标准误 | - |
-| `"HC2"` | 小样本稳健 | - |
-| `"HC3"` | 最保守稳健 | - |
+| Type | Description | Additional Parameters |
+|------|-------------|----------------------|
+| `"nonrobust"` | Classical standard errors | - |
+| `"HC0"` | White standard errors | - |
+| `"HC1"` | Stata robust standard errors | - |
+| `"HC2"` | Small sample robust | - |
+| `"HC3"` | Most conservative robust | - |
 | `"hac"` | Newey-West HAC | `maxLags`, `kernel` |
-| `"cluster"` | 单维聚类 | `clusterIds` |
-| `"multiway"` | 多维聚类 | `clusterGroups` |
+| `"cluster"` | Single-way clustering | `clusterIds` |
+| `"multiway"` | Multi-way clustering | `clusterGroups` |
 
-**完整示例:**
+**Complete Example:**
 
 ```matlab
-%% 异方差稳健标准误
+%% Heteroskedasticity-robust standard errors
 result = pyBridge.StatsmodelsWrapper.ols(y, X, covType="HC1");
-fprintf('HC1标准误: %.3f\n', result.stdErrors(2));
+fprintf('HC1 standard errors: %.3f\n', result.stdErrors(2));
 
-%% HAC标准误
+%% HAC standard errors
 result = pyBridge.StatsmodelsWrapper.ols(y, X, ...
     covType="hac", maxLags=4, kernel="newey-west");
-fprintf('HAC标准误: %.3f\n', result.stdErrors(2));
+fprintf('HAC standard errors: %.3f\n', result.stdErrors(2));
 
-%% 单维聚类标准误
+%% Single-way clustered standard errors
 result = pyBridge.StatsmodelsWrapper.ols(y, X, ...
     covType="cluster", clusterIds=firmIds);
-fprintf('聚类数: %d\n', result.nClusters);
+fprintf('Number of clusters: %d\n', result.nClusters);
 
-%% 多维聚类标准误
+%% Multi-way clustered standard errors
 result = pyBridge.StatsmodelsWrapper.ols(y, X, ...
     covType="multiway", clusterGroups={firmIds, yearIds});
-fprintf('双向聚类标准误: %.3f\n', result.stdErrors(2));
+fprintf('Two-way clustered standard errors: %.3f\n', result.stdErrors(2));
 ```
 
 ---
 
-### LinearmodelsWrapper.panelOLS - 聚类标准误选项
+### LinearmodelsWrapper.panelOLS - Clustered Standard Error Options
 
-面板数据模型支持多种聚类标准误:
+Panel data models support multiple clustered standard errors:
 
 ```matlab
 result = pyBridge.LinearmodelsWrapper.panelOLS(y, X, entityIds, timeIds, options)
 ```
 
-**标准误类型 (`options.covType`):**
+**Standard Error Types (`options.covType`):**
 
-| 类型 | 说明 |
-|------|------|
-| `"unadjusted"` | 经典标准误 |
-| `"robust"` | 异方差稳健(默认) |
-| `"clustered"` | 聚类标准误 |
-| `"clustered_entity"` | 按个体聚类 |
-| `"clustered_time"` | 按时间聚类 |
-| `"clustered_both"` | 双向聚类(个体×时间) |
+| Type | Description |
+|------|-------------|
+| `"unadjusted"` | Classical standard errors |
+| `"robust"` | Heteroskedasticity-robust (default) |
+| `"clustered"` | Clustered standard errors |
+| `"clustered_entity"` | Cluster by entity |
+| `"clustered_time"` | Cluster by time |
+| `"clustered_both"` | Two-way clustering (entity × time) |
 
-**示例:**
+**Example:**
 
 ```matlab
-%% 固定效应 + 企业聚类
+%% Fixed effects + firm clustering
 result = pyBridge.LinearmodelsWrapper.panelOLS(y, X, firmIds, yearIds, ...
     entityEffects=true, covType="clustered_entity");
 
-%% 双向固定效应 + 双向聚类
+%% Two-way fixed effects + two-way clustering
 result = pyBridge.LinearmodelsWrapper.panelOLS(y, X, firmIds, yearIds, ...
     entityEffects=true, timeEffects=true, covType="clustered_both");
 ```
 
-#### 静态方法
+#### Static Methods
 
 ##### toPython
 
@@ -367,12 +367,12 @@ result = pyBridge.LinearmodelsWrapper.panelOLS(y, X, firmIds, yearIds, ...
 pyObj = pyBridge.DataConverter.toPython(mlData, options)
 ```
 
-**参数:**
-- `mlData`: MATLAB数据(数组、表、结构体、cell等)
-- `options.dtype`: 指定NumPy数据类型(可选)
-- `options.copy`: 是否创建副本(可选,默认false)
+**Parameters:**
+- `mlData`: MATLAB data (array, table, struct, cell, etc.)
+- `options.dtype`: Specify NumPy data type (optional)
+- `options.copy`: Whether to create a copy (optional, default: false)
 
-**返回:** Python对象(NumPy数组、Pandas DataFrame或dict)
+**Returns:** Python object (NumPy array, Pandas DataFrame, or dict)
 
 ##### toMatlab
 
@@ -380,23 +380,23 @@ pyObj = pyBridge.DataConverter.toPython(mlData, options)
 mlData = pyBridge.DataConverter.toMatlab(pyObj, options)
 ```
 
-**参数:**
-- `pyObj`: Python对象
-- `options.type`: 指定输出类型('array', 'table', 'struct')
-- `options.rowNames`: DataFrame转换时是否保留行名
+**Parameters:**
+- `pyObj`: Python object
+- `options.type`: Specify output type ('array', 'table', 'struct')
+- `options.rowNames`: Whether to preserve row names when converting DataFrame
 
-**返回:** MATLAB数据
+**Returns:** MATLAB data
 
-##### 专用转换方法
+##### Specialized Conversion Methods
 
-| 方法 | 说明 |
-|------|------|
-| `array2Numpy(mlArray)` | MATLAB数组 → NumPy数组 |
-| `numpy2Array(pyArray)` | NumPy数组 → MATLAB数组 |
-| `table2Df(mlTable)` | MATLAB表 → Pandas DataFrame |
-| `df2Table(pyDf)` | Pandas DataFrame → MATLAB表 |
-| `struct2Dict(mlStruct)` | MATLAB结构体 → Python字典 |
-| `dict2Struct(pyDict)` | Python字典 → MATLAB结构体 |
+| Method | Description |
+|--------|-------------|
+| `array2Numpy(mlArray)` | MATLAB array → NumPy array |
+| `numpy2Array(pyArray)` | NumPy array → MATLAB array |
+| `table2Df(mlTable)` | MATLAB table → Pandas DataFrame |
+| `df2Table(pyDf)` | Pandas DataFrame → MATLAB table |
+| `struct2Dict(mlStruct)` | MATLAB struct → Python dict |
+| `dict2Struct(pyDict)` | Python dict → MATLAB struct |
 | `cell2List(mlCell)` | MATLAB cell → Python list |
 | `list2Cell(pyList)` | Python list → MATLAB cell |
 
@@ -404,9 +404,9 @@ mlData = pyBridge.DataConverter.toMatlab(pyObj, options)
 
 ### ResultParser
 
-Python返回结果解析器。
+Python return result parser.
 
-#### 静态方法
+#### Static Methods
 
 ##### parse
 
@@ -414,422 +414,422 @@ Python返回结果解析器。
 result = pyBridge.ResultParser.parse(pyObj, parseType)
 ```
 
-**参数:**
-- `pyObj`: Python返回对象
-- `parseType` (可选): 解析类型('auto', 'statsmodels', 'econml', 'linearmodels', 'array', 'dataframe')
+**Parameters:**
+- `pyObj`: Python return object
+- `parseType` (optional): Parse type ('auto', 'statsmodels', 'econml', 'linearmodels', 'array', 'dataframe')
 
-**返回:** MATLAB结构体或数组
+**Returns:** MATLAB struct or array
 
-##### 专用解析方法
+##### Specialized Parsing Methods
 
-| 方法 | 说明 |
-|------|------|
-| `parseStatsmodels(pyObj)` | 解析statsmodels回归结果 |
-| `parseEconML(pyResult)` | 解析econml因果推断结果 |
-| `parseLinearmodels(pyObj)` | 解析linearmodels面板数据结果 |
-| `parseSummary(pyObj)` | 解析统计摘要 |
-| `parseArray(pyObj)` | 解析NumPy数组 |
-| `extractAttributes(pyObj, attrNames)` | 提取指定属性 |
+| Method | Description |
+|--------|-------------|
+| `parseStatsmodels(pyObj)` | Parse statsmodels regression results |
+| `parseEconML(pyResult)` | Parse econml causal inference results |
+| `parseLinearmodels(pyObj)` | Parse linearmodels panel data results |
+| `parseSummary(pyObj)` | Parse statistical summary |
+| `parseArray(pyObj)` | Parse NumPy array |
+| `extractAttributes(pyObj, attrNames)` | Extract specified attributes |
 
-##### 工具方法
+##### Utility Methods
 
-| 方法 | 说明 |
-|------|------|
-| `printResult(result, maxDepth)` | 打印解析结果 |
+| Method | Description |
+|--------|-------------|
+| `printResult(result, maxDepth)` | Print parsed results |
 
 ---
 
 ### ErrorHandler
 
-统一的错误处理模块。
+Unified error handling module.
 
-#### 静态方法
+#### Static Methods
 
-| 方法 | 说明 |
-|------|------|
-| `wrapCall(func, varargin)` | 包装函数调用,自动捕获异常 |
-| `handlePyError(ME, options)` | 处理Python异常 |
-| `getPyTraceback()` | 获取Python错误堆栈 |
-| `formatError(errorInfo, options)` | 格式化错误消息 |
-| `safeCall(func, defaultResult, varargin)` | 安全调用,失败返回默认值 |
-| `validateInputs(varargin)` | 验证输入参数 |
-| `printPyError(ME)` | 打印Python错误详情 |
-| `tryImport(moduleName)` | 尝试导入Python模块 |
-| `assertPyAvailable(libName)` | 确保Python库可用 |
+| Method | Description |
+|--------|-------------|
+| `wrapCall(func, varargin)` | Wrap function call, automatically catch exceptions |
+| `handlePyError(ME, options)` | Handle Python exceptions |
+| `getPyTraceback()` | Get Python error stack trace |
+| `formatError(errorInfo, options)` | Format error messages |
+| `safeCall(func, defaultResult, varargin)` | Safe call, return default value on failure |
+| `validateInputs(varargin)` | Validate input parameters |
+| `printPyError(ME)` | Print Python error details |
+| `tryImport(moduleName)` | Try to import Python module |
+| `assertPyAvailable(libName)` | Ensure Python library is available |
 
 ---
 
-## scipy封装
+## scipy Wrapper
 
 ### ScipyStats
 
-统计功能封装类。
+Statistical functionality wrapper class.
 
-#### 构造函数
+#### Constructor
 
 ```matlab
 stats = pyBridge.internal.ScipyStats();
 ```
 
-#### 概率分布方法
+#### Probability Distribution Methods
 
-| 方法 | 说明 |
-|------|------|
-| `normPDF(x, mu, sigma)` | 正态分布PDF |
-| `normCDF(x, mu, sigma)` | 正态分布CDF |
-| `normPPF(p, mu, sigma)` | 正态分布分位数 |
-| `tPDF(x, df)` | t分布PDF |
-| `tCDF(x, df)` | t分布CDF |
+| Method | Description |
+|--------|-------------|
+| `normPDF(x, mu, sigma)` | Normal distribution PDF |
+| `normCDF(x, mu, sigma)` | Normal distribution CDF |
+| `normPPF(p, mu, sigma)` | Normal distribution quantile |
+| `tPDF(x, df)` | t-distribution PDF |
+| `tCDF(x, df)` | t-distribution CDF |
 
-#### 假设检验方法
+#### Hypothesis Testing Methods
 
-| 方法 | 说明 |
-|------|------|
-| `tTest(data1, data2, options)` | t检验(独立/单样本) |
-| `tTestPaired(data1, data2)` | 配对t检验 |
-| `chi2Test(observed, expected)` | 卡方检验 |
-| `fTest(data1, data2)` | F检验(ANOVA) |
-| `kruskalWallis(varargin)` | Kruskal-Wallis H检验 |
-| `mannWhitneyU(data1, data2, options)` | Mann-Whitney U检验 |
-| `normalityTest(data, testName)` | 正态性检验 |
+| Method | Description |
+|--------|-------------|
+| `tTest(data1, data2, options)` | t-test (independent/one-sample) |
+| `tTestPaired(data1, data2)` | Paired t-test |
+| `chi2Test(observed, expected)` | Chi-square test |
+| `fTest(data1, data2)` | F-test (ANOVA) |
+| `kruskalWallis(varargin)` | Kruskal-Wallis H test |
+| `mannWhitneyU(data1, data2, options)` | Mann-Whitney U test |
+| `normalityTest(data, testName)` | Normality test |
 
-#### 描述性统计方法
+#### Descriptive Statistics Methods
 
-| 方法 | 说明 |
-|------|------|
-| `describe(data, options)` | 描述性统计 |
-| `correlation(data1, data2, method)` | 相关分析 |
-| `fitDistribution(data, distName)` | 分布拟合 |
-| `percentile(data, percentiles)` | 百分位数 |
-| `quantile(data, quantiles)` | 分位数 |
+| Method | Description |
+|--------|-------------|
+| `describe(data, options)` | Descriptive statistics |
+| `correlation(data1, data2, method)` | Correlation analysis |
+| `fitDistribution(data, distName)` | Distribution fitting |
+| `percentile(data, percentiles)` | Percentiles |
+| `quantile(data, quantiles)` | Quantiles |
 
 ---
 
 ### ScipyOptimize
 
-优化功能封装类。
+Optimization functionality wrapper class.
 
-#### 构造函数
+#### Constructor
 
 ```matlab
 opt = pyBridge.internal.ScipyOptimize();
 ```
 
-#### 最小化方法
+#### Minimization Methods
 
-| 方法 | 说明 |
-|------|------|
-| `minimize(fun, x0, options)` | 多元函数最小化 |
-| `minimizeScalar(fun, bounds, options)` | 一元函数最小化 |
-| `linprog(c, A, b, Aeq, beq, bounds, options)` | 线性规划 |
+| Method | Description |
+|--------|-------------|
+| `minimize(fun, x0, options)` | Multivariate function minimization |
+| `minimizeScalar(fun, bounds, options)` | Univariate function minimization |
+| `linprog(c, A, b, Aeq, beq, bounds, options)` | Linear programming |
 
-#### 求根方法
+#### Root Finding Methods
 
-| 方法 | 说明 |
-|------|------|
-| `root(fun, x0, options)` | 方程求根 |
-| `fsolve(fun, x0, options)` | 求解非线性方程组(MATLAB风格) |
+| Method | Description |
+|--------|-------------|
+| `root(fun, x0, options)` | Equation root finding |
+| `fsolve(fun, x0, options)` | Solve nonlinear equations (MATLAB style) |
 
-#### 拟合方法
+#### Fitting Methods
 
-| 方法 | 说明 |
-|------|------|
-| `curveFit(fun, xData, yData, p0, bounds)` | 曲线拟合 |
-| `leastSquares(fun, x0, bounds, options)` | 非线性最小二乘 |
+| Method | Description |
+|--------|-------------|
+| `curveFit(fun, xData, yData, p0, bounds)` | Curve fitting |
+| `leastSquares(fun, x0, bounds, options)` | Nonlinear least squares |
 
-#### 全局优化方法
+#### Global Optimization Methods
 
-| 方法 | 说明 |
-|------|------|
-| `differentialEvolution(fun, bounds, options)` | 差分进化算法 |
-| `basinhopping(fun, x0, options)` | 盆地跳跃算法 |
+| Method | Description |
+|--------|-------------|
+| `differentialEvolution(fun, bounds, options)` | Differential evolution algorithm |
+| `basinhopping(fun, x0, options)` | Basin hopping algorithm |
 
 ---
 
 ### ScipySignal
 
-信号处理功能封装类。
+Signal processing functionality wrapper class.
 
-#### 构造函数
+#### Constructor
 
 ```matlab
 sig = pyBridge.internal.ScipySignal();
 ```
 
-#### 滤波器设计方法
+#### Filter Design Methods
 
-| 方法 | 说明 |
-|------|------|
-| `butter(order, wn, filterType)` | Butterworth滤波器 |
-| `cheby1(order, rp, wn, filterType)` | Chebyshev I型滤波器 |
-| `ellip(order, rp, rs, wn, filterType)` | 椭圆滤波器 |
+| Method | Description |
+|--------|-------------|
+| `butter(order, wn, filterType)` | Butterworth filter |
+| `cheby1(order, rp, wn, filterType)` | Chebyshev Type I filter |
+| `ellip(order, rp, rs, wn, filterType)` | Elliptic filter |
 
-#### 滤波方法
+#### Filtering Methods
 
-| 方法 | 说明 |
-|------|------|
-| `filter(b, a, x)` | IIR/FIR滤波 |
-| `filtfilt(b, a, x)` | 零相位滤波 |
-| `resample(x, num, options)` | 重采样 |
+| Method | Description |
+|--------|-------------|
+| `filter(b, a, x)` | IIR/FIR filtering |
+| `filtfilt(b, a, x)` | Zero-phase filtering |
+| `resample(x, num, options)` | Resampling |
 
-#### 频谱分析方法
+#### Spectral Analysis Methods
 
-| 方法 | 说明 |
-|------|------|
-| `welch(x, fs, options)` | Welch功率谱密度估计 |
-| `periodogram(x, fs, options)` | 周期图法功率谱估计 |
-| `spectrogram(x, fs, options)` | 短时傅里叶变换 |
+| Method | Description |
+|--------|-------------|
+| `welch(x, fs, options)` | Welch power spectral density estimation |
+| `periodogram(x, fs, options)` | Periodogram power spectral estimation |
+| `spectrogram(x, fs, options)` | Short-time Fourier transform |
 | `stft(x, fs, options)` | STFT |
 
-#### 其他方法
+#### Other Methods
 
-| 方法 | 说明 |
-|------|------|
-| `correlate(x, y, mode)` | 互相关 |
-| `convolve(x, y, mode)` | 卷积 |
-| `findPeaks(x, options)` | 峰值检测 |
-| `getWindow(windowType, n)` | 生成窗函数 |
-| `hilbert(x)` | Hilbert变换 |
+| Method | Description |
+|--------|-------------|
+| `correlate(x, y, mode)` | Cross-correlation |
+| `convolve(x, y, mode)` | Convolution |
+| `findPeaks(x, options)` | Peak detection |
+| `getWindow(windowType, n)` | Generate window function |
+| `hilbert(x)` | Hilbert transform |
 
 ---
 
-## statsmodels封装
+## statsmodels Wrapper
 
 ### StatsmodelsWrapper
 
-回归分析、时间序列、假设检验封装类。
+Regression analysis, time series, and hypothesis testing wrapper class.
 
-#### 回归分析方法
+#### Regression Analysis Methods
 
-| 方法 | 说明 |
-|------|------|
-| `ols(y, X, options)` | 普通最小二乘回归 |
-| `wls(y, X, weights, options)` | 加权最小二乘回归 |
-| `glm(y, X, options)` | 广义线性模型 |
-| `logistic(y, X, options)` | 逻辑回归 |
-| `probit(y, X, options)` | Probit回归 |
+| Method | Description |
+|--------|-------------|
+| `ols(y, X, options)` | Ordinary least squares regression |
+| `wls(y, X, weights, options)` | Weighted least squares regression |
+| `glm(y, X, options)` | Generalized linear model |
+| `logistic(y, X, options)` | Logistic regression |
+| `probit(y, X, options)` | Probit regression |
 
-#### 时间序列方法
+#### Time Series Methods
 
-| 方法 | 说明 |
-|------|------|
-| `arima(y, order, options)` | ARIMA时间序列模型 |
-| `varModel(data, maxLags, options)` | VAR向量自回归模型 |
-| `adfuller(y, options)` | ADF单位根检验 |
-| `kpss(y, options)` | KPSS单位根检验 |
+| Method | Description |
+|--------|-------------|
+| `arima(y, order, options)` | ARIMA time series model |
+| `varModel(data, maxLags, options)` | VAR vector autoregression model |
+| `adfuller(y, options)` | ADF unit root test |
+| `kpss(y, options)` | KPSS unit root test |
 
-#### 诊断检验方法
+#### Diagnostic Testing Methods
 
-| 方法 | 说明 |
-|------|------|
-| `breuschPagan(y, X, options)` | Breusch-Pagan异方差检验 |
-| `whiteTest(y, X, options)` | White异方差检验 |
-| `durbinWatson(residuals)` | Durbin-Watson自相关检验 |
-| `vif(X, options)` | 方差膨胀因子(多重共线性) |
+| Method | Description |
+|--------|-------------|
+| `breuschPagan(y, X, options)` | Breusch-Pagan heteroskedasticity test |
+| `whiteTest(y, X, options)` | White heteroskedasticity test |
+| `durbinWatson(residuals)` | Durbin-Watson autocorrelation test |
+| `vif(X, options)` | Variance inflation factor (multicollinearity) |
 
 ---
 
-## linearmodels封装
+## linearmodels Wrapper
 
 ### LinearmodelsWrapper
 
-面板数据分析、工具变量回归封装类。
+Panel data analysis and instrumental variable regression wrapper class.
 
-#### 面板数据方法
+#### Panel Data Methods
 
-| 方法 | 说明 |
-|------|------|
-| `panelOLS(y, X, entityIds, timeIds, options)` | 固定效应面板模型 |
-| `randomEffects(y, X, entityIds, timeIds, options)` | 随机效应模型 |
-| `betweenOLS(y, X, entityIds, timeIds)` | 组间估计 |
-| `pooledOLS(y, X, entityIds, timeIds, options)` | 混合OLS |
-| `firstDifference(y, X, entityIds, timeIds)` | 一阶差分模型 |
+| Method | Description |
+|--------|-------------|
+| `panelOLS(y, X, entityIds, timeIds, options)` | Fixed effects panel model |
+| `randomEffects(y, X, entityIds, timeIds, options)` | Random effects model |
+| `betweenOLS(y, X, entityIds, timeIds)` | Between estimator |
+| `pooledOLS(y, X, entityIds, timeIds, options)` | Pooled OLS |
+| `firstDifference(y, X, entityIds, timeIds)` | First difference model |
 
-#### 工具变量方法
+#### Instrumental Variable Methods
 
-| 方法 | 说明 |
-|------|------|
-| `iv2SLS(y, endogVars, exogVars, instruments, options)` | 两阶段最小二乘 |
-| `ivLIML(y, endogVars, exogVars, instruments, options)` | 有限信息极大似然估计 |
-| `ivGMM(y, endogVars, exogVars, instruments, options)` | 广义矩估计 |
+| Method | Description |
+|--------|-------------|
+| `iv2SLS(y, endogVars, exogVars, instruments, options)` | Two-stage least squares |
+| `ivLIML(y, endogVars, exogVars, instruments, options)` | Limited information maximum likelihood |
+| `ivGMM(y, endogVars, exogVars, instruments, options)` | Generalized method of moments |
 
-**参数说明**：
-- `y`：因变量
-- `endogVars`：内生变量（Endogenous regressors，受内生性困扰、需要工具化的变量）
-- `exogVars`：外生控制变量（Exogenous regressors，不需要工具化的控制变量），无外生控制时传 `[]`
-- `instruments`：工具变量（Instrumental variables，排除限制，用于识别内生变量，数量需 >= 内生变量数量）
-- `options.addConstant` (logical, default: **true**)：是否向外生变量中添加常数项
-- `options.covType` (string, default: "unadjusted")：协方差矩阵类型: "unadjusted", "robust", "kernel", "clustered"
-- `options.weights`：观测权重（可选）
+**Parameter Description:**
+- `y`: Dependent variable
+- `endogVars`: Endogenous regressors (variables subject to endogeneity that need to be instrumented)
+- `exogVars`: Exogenous control variables (control variables that do not need to be instrumented), pass `[]` when there are no exogenous controls
+- `instruments`: Instrumental variables (exclusion restrictions, used to identify endogenous variables, count must be >= number of endogenous variables)
+- `options.addConstant` (logical, default: **true**): Whether to add constant term to exogenous variables
+- `options.covType` (string, default: "unadjusted"): Covariance matrix type: "unadjusted", "robust", "kernel", "clustered"
+- `options.weights`: Observation weights (optional)
 
-**示例**：
+**Example:**
 ```matlab
-% 工资方程：教育是内生变量，用父母教育水平作为工具变量
-% wage = f(education, experience), 其中 education 是内生的
+% Wage equation: education is endogenous, use parental education as instrument
+% wage = f(education, experience), where education is endogenous
 result = pyBridge.LinearmodelsWrapper.iv2SLS(wage, education, experience, parents_edu);
 
-% 无外生控制变量的情况
+% Case with no exogenous control variables
 result = pyBridge.LinearmodelsWrapper.iv2SLS(y, endogX, [], instruments);
 ```
 
-#### 检验方法
+#### Testing Methods
 
-| 方法 | 说明 |
-|------|------|
-| `hausmanTest(fixedEffects, randomEffects)` | Hausman检验 |
-| `panelUnitTest(y, entityIds, timeIds, testName)` | 面板单位根检验 |
+| Method | Description |
+|--------|-------------|
+| `hausmanTest(fixedEffects, randomEffects)` | Hausman test |
+| `panelUnitTest(y, entityIds, timeIds, testName)` | Panel unit root test |
 
 ---
 
-## econml封装
+## econml Wrapper
 
 ### EconmlWrapper
 
-因果推断和处理效应估计封装类。
+Causal inference and treatment effect estimation wrapper class.
 
-#### 因果推断方法
+#### Causal Inference Methods
 
-| 方法 | 说明 |
-|------|------|
+| Method | Description |
+|--------|-------------|
 | `dml(Y, T, X, W, options)` | Double Machine Learning |
 | `drLearner(Y, T, X, W, options)` | Doubly Robust Learner |
-| `causalForest(Y, T, X, W, options)` | 因果森林 |
+| `causalForest(Y, T, X, W, options)` | Causal Forest |
 
-#### 元学习方法
+#### Meta-learner Methods
 
-| 方法 | 说明 |
-|------|------|
+| Method | Description |
+|--------|-------------|
 | `sLearner(Y, T, X, options)` | S-Learner |
 | `tLearner(Y, T, X, options)` | T-Learner |
 | `xLearner(Y, T, X, options)` | X-Learner |
 
-#### 解释和预测方法
+#### Interpretation and Prediction Methods
 
-| 方法 | 说明 |
-|------|------|
-| `interpret(result, X, featureNames)` | 解释因果效应 |
-| `predictEffect(fittedModel, Xnew)` | 预测处理效应 |
-| `predictInterval(fittedModel, Xnew, alpha)` | 预测置信区间 |
-| `sensitivityAnalysis(fittedModel, Y, T, X)` | 敏感性分析 |
+| Method | Description |
+|--------|-------------|
+| `interpret(result, X, featureNames)` | Interpret causal effects |
+| `predictEffect(fittedModel, Xnew)` | Predict treatment effects |
+| `predictInterval(fittedModel, Xnew, alpha)` | Predict confidence intervals |
+| `sensitivityAnalysis(fittedModel, Y, T, X)` | Sensitivity analysis |
 
 ---
 
-## 结果结构体
+## Result Structures
 
-### OLS回归结果
+### OLS Regression Results
 
 ```matlab
-result.nObs           % 观测数
-result.dfModel        % 模型自由度
-result.dfResiduals    % 残差自由度
+result.nObs           % Number of observations
+result.dfModel        % Model degrees of freedom
+result.dfResiduals    % Residual degrees of freedom
 result.rSquared       % R²
-result.adjRSquared    % 调整R²
+result.adjRSquared    % Adjusted R²
 result.aic            % AIC
 result.bic            % BIC
-result.params         % 参数估计
-result.stdErrors      % 标准误
-result.tStatistics    % t统计量
-result.pValues        % p值
-result.confInt        % 置信区间(结构体)
-  .lower              % 下界
-  .upper              % 上界
-result.paramNames     % 参数名称
-result.residuals      % 残差
-result.fittedValues   % 拟合值
-result.fStatistic     % F统计量
-result.fPValue        % F检验p值
+result.params         % Parameter estimates
+result.stdErrors      % Standard errors
+result.tStatistics    % t-statistics
+result.pValues        % p-values
+result.confInt        % Confidence intervals (struct)
+  .lower              % Lower bound
+  .upper              % Upper bound
+result.paramNames     % Parameter names
+result.residuals      % Residuals
+result.fittedValues   % Fitted values
+result.fStatistic     % F-statistic
+result.fPValue        % F-test p-value
 ```
 
-### DML因果推断结果
+### DML Causal Inference Results
 
 ```matlab
-result.modelType      % 模型类型
-result.ate            % 平均处理效应
-result.ateConfInt     % ATE置信区间(结构体)
-  .lower              % 下界
-  .upper              % 上界
-result.atePValue      % ATE的p值
-result.cate           % 条件平均处理效应
-result.fittedModel    % 拟合模型对象
+result.modelType      % Model type
+result.ate            % Average treatment effect
+result.ateConfInt     % ATE confidence interval (struct)
+  .lower              % Lower bound
+  .upper              % Upper bound
+result.atePValue      % ATE p-value
+result.cate           % Conditional average treatment effect
+result.fittedModel    % Fitted model object
 ```
 
-### 面板数据结果
+### Panel Data Results
 
 ```matlab
-result.nObs           % 观测数
-result.nEntities      % 个体数
-result.nTimes         % 时间点数
-result.rSquared       % R²(整体)
-result.rSquaredWithin % R²(组内)
-result.rSquaredBetween % R²(组间)
-result.params         % 参数估计
-result.stdErrors      % 标准误
-result.tStats         % t统计量
-result.pValues        % p值
-result.paramNames     % 参数名称
-result.fStatistic     % F统计量
-result.fPValue        % F检验p值
+result.nObs           % Number of observations
+result.nEntities      % Number of entities
+result.nTimes         % Number of time periods
+result.rSquared       % R² (overall)
+result.rSquaredWithin % R² (within)
+result.rSquaredBetween % R² (between)
+result.params         % Parameter estimates
+result.stdErrors      % Standard errors
+result.tStats         % t-statistics
+result.pValues        % p-values
+result.paramNames     % Parameter names
+result.fStatistic     % F-statistic
+result.fPValue        % F-test p-value
 ```
 
 ---
 
-## 常见选项参数
+## Common Option Parameters
 
-### 假设检验选项
+### Hypothesis Testing Options
 
 ```matlab
-options.equalVar      % 是否假设方差相等(默认true)
-options.alternative   % 备择假设('two-sided', 'less', 'greater')
+options.equalVar      % Assume equal variances (default: true)
+options.alternative   % Alternative hypothesis ('two-sided', 'less', 'greater')
 ```
 
-### 优化选项
+### Optimization Options
 
 ```matlab
-options.method        % 优化方法
-options.maxIter       % 最大迭代次数
-options.tol           % 收敛容差
-options.display       % 是否显示输出
+options.method        % Optimization method
+options.maxIter       % Maximum iterations
+options.tol           % Convergence tolerance
+options.display       % Whether to display output
 ```
 
-### 回归选项
+### Regression Options
 
 ```matlab
-options.addConstant   % 是否添加常数项(默认true)
-options.covType       % 协方差矩阵类型
+options.addConstant   % Whether to add constant term (default: true)
+options.covType       % Covariance matrix type
 ```
 
-### 面板数据选项
+### Panel Data Options
 
 ```matlab
-options.entityEffects % 是否包含个体固定效应
-options.timeEffects   % 是否包含时间固定效应
-options.weights       % 权重
+options.entityEffects % Include entity fixed effects
+options.timeEffects   % Include time fixed effects
+options.weights       % Weights
 ```
 
-### 因果推断选项
+### Causal Inference Options
 
 ```matlab
-options.modelY        % Y的估计模型('linear', 'lasso', 'ridge', 'forest')
-options.modelT        % T的估计模型
-options.discreteTreatment % T是否为离散型
-options.randomState   % 随机种子
+options.modelY        % Model for Y ('linear', 'lasso', 'ridge', 'forest')
+options.modelT        % Model for T
+options.discreteTreatment % Whether T is discrete
+options.randomState   % Random seed
 ```
 
 ---
 
-**文档版本**: 1.0.1  
-**最后更新**: 2026-03-20
+**Document Version**: 1.0.1  
+**Last Updated**: 2026-03-20
 
 ---
 
-## Python 3.13 兼容性说明
+## Python 3.13 Compatibility Notes
 
-本工具箱已通过 Python 3.13 + MATLAB R2025b 环境测试，功能完全正常。
+This toolbox has been tested with Python 3.13 + MATLAB R2025b environment, all features work correctly.
 
-**注意事项:**
-- MathWorks 官方尚未正式宣布支持 Python 3.13，但实际测试中所有功能均正常运行
-- 已通过 80 个测试用例验证，包括：
+**Notes:**
+- MathWorks has not officially announced support for Python 3.13, but all features work correctly in actual testing
+- Verified with 80 test cases, including:
   - AcademicCorrectionsTest: 10/10 ✓
   - MLogitHACSpecializedTest: 29/29 ✓
   - PyBridgeConsistencyTest: 41/41 ✓
-- 如遇到兼容性问题，建议回退到 Python 3.10 或 3.11
+- If you encounter compatibility issues, consider falling back to Python 3.10 or 3.11

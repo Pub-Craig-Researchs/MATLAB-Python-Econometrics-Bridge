@@ -662,13 +662,13 @@
                 
                 % Test with different kernels
                 kernels = {'bartlett', 'parzen'};
-                maxLags = 4;
+                lag = 4;
                 
                 for i = 1:length(kernels)
                     kernel = kernels{i};
                     
                     covMatrix = pyBridge.internal.CovarianceTypes.hac(...
-                        residuals, X, maxLags=maxLags, kernel=kernel);
+                        residuals, X, lag=lag, kernel=kernel);
                     
                     % Test 1: Matrix should be symmetric
                     testCase.verifyEqual(covMatrix, covMatrix', 'AbsTol', testCase.Tolerance, ...
@@ -826,7 +826,7 @@
                 
                 % Test HAC comparison function
                 result = pyBridge.internal.CovarianceTypes.testHAC(...
-                    residuals, X, maxLagsRange=0:5);
+                    residuals, X, lagRange=0:5);
                 
                 % Verify result structure
                 testCase.verifyTrue(isfield(result, 'lags'), ...

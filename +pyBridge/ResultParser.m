@@ -152,6 +152,12 @@
                         if llNull ~= 0
                             result.pseudoRSquared = 1 - result.logLikelihood / llNull;
                             result.pseudoRSquaredMethod = "McFadden";
+                            % Adjusted McFadden Pseudo R-squared
+                            dfModelAttr = py.getattr(pyObj, 'df_model', py.None);
+                            if ~isequal(dfModelAttr, py.None)
+                                k = double(dfModelAttr);
+                                result.adjPseudoRSquared = 1 - (result.logLikelihood - k) / llNull;
+                            end
                         end
                     end
                 end

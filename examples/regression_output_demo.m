@@ -238,11 +238,11 @@ resultMLogitClassic = pyBridge.StatsmodelsWrapper.multinomialLogit(yMulti_ts, X_
 % HAC SE
 % Note: "newey-west" is internally mapped to "bartlett"
 resultMLogitHAC = pyBridge.StatsmodelsWrapper.multinomialLogit(yMulti_ts, X_ts, ...
-    covType="HAC", maxLags=4, varNames={"X1", "X2", "X3"});
+    covType="HAC", lag=4, varNames={"X1", "X2", "X3"});
 
 fprintf("MLogit HAC SE Results:\n");
 fprintf("  - Covariance Type: %s\n", resultMLogitHAC.covType);
-fprintf("  - Max Lags: %d\n", resultMLogitHAC.maxLags);
+fprintf("  - Lag: %d\n", resultMLogitHAC.lag);
 fprintf("  - Kernel: %s\n", resultMLogitHAC.kernel);
 fprintf("  - AIC: %.2f\n\n", resultMLogitHAC.aic);
 

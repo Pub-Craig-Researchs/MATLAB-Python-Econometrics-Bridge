@@ -27,10 +27,10 @@
             %   options.covType - Standard error type:
             %       'nonrobust' - Classical standard errors
             %       'HC0', 'HC1', 'HC2', 'HC3' - Heteroskedasticity-robust standard errors
-            %       'hac' - HAC (Newey-West) standard errors (requires options.maxLags)
+            %       'hac' - HAC (Newey-West) standard errors
             %       'cluster' - Clustered standard errors (requires options.clusterIds)
             %       'multiway' - Multiway clustering (requires options.clusterGroups)
-            %   options.maxLags - Maximum lags for HAC
+            %   options.lag - Lag truncation order for HAC (default: floor(4*(n/100)^(2/9)))
             %   options.kernel - HAC kernel ('bartlett', 'parzen', 'qs')
             %   options.clusterIds - Cluster identifiers (single dimension)
             %   options.clusterGroups - Multiway cluster identifiers (cell array)
@@ -40,7 +40,7 @@
             %   result = pyBridge.StatsmodelsWrapper.ols(y, X, covType="HC1");
             %
             %   % HAC standard errors
-            %   result = pyBridge.StatsmodelsWrapper.ols(y, X, covType="hac", maxLags=4);
+            %   result = pyBridge.StatsmodelsWrapper.ols(y, X, covType="hac", lag=4);
             %
             %   % Clustered standard errors
             %   result = pyBridge.StatsmodelsWrapper.ols(y, X, covType="cluster", clusterIds=firmIds);
@@ -54,7 +54,7 @@
                 X double
                 options.addConstant logical = true
                 options.covType char = "nonrobust"
-                options.maxLags double = []
+                options.lag double = []
                 options.kernel char = "bartlett"
                 options.clusterIds double = []
                 options.clusterGroups cell = {}
@@ -84,20 +84,23 @@
                 % Map kernel name to statsmodels-accepted name
                 mappedKernel = pyBridge.internal.CovarianceTypes.mapKernelName(options.kernel);
                 
+                % Compute default lag if not specified: floor(4*(n/100)^(2/9))
+                if isempty(options.lag)
+                    nLag = floor(4*(length(y)/100)^(2/9));
+                else
+                    nLag = options.lag;
+                end
+                
                 % Get robust covariance results - use py.getattr for method call
                 % Pass maxlags and kernel directly as keyword arguments
                 getRobustCovFunc = py.getattr(fitResult, 'get_robustcov_results');
-                if ~isempty(options.maxLags)
-                    fitRobust = getRobustCovFunc(pyargs('cov_type', 'HAC', 'maxlags', int64(options.maxLags), 'kernel', mappedKernel));
-                else
-                    fitRobust = getRobustCovFunc(pyargs('cov_type', 'HAC', 'kernel', mappedKernel));
-                end
+                fitRobust = getRobustCovFunc(pyargs('cov_type', 'HAC', 'maxlags', int64(nLag), 'kernel', mappedKernel));
                 
                 % Parse result from robust fit
                 result = pyBridge.ResultParser.parseStatsmodels(fitRobust);
                 result.covType = "HAC";
                 result.kernel = options.kernel;
-                result.maxLags = options.maxLags;
+                result.lag = nLag;
                 
             elseif strcmp(covTypeLower, "cluster")
                 % Single-dimensional clustered standard errors
@@ -223,6 +226,12 @@
             
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.family = string(options.family);
+            
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
         end
         
         function result = logistic(y, X, options)
@@ -237,9 +246,9 @@
             %       'nonrobust' - Classical standard errors (default)
             %       'HC0', 'HC1', 'HC2', 'HC3' - Heteroskedasticity-robust
             %       'cluster' - Clustered standard errors (requires clusterIds)
-            %       'HAC' - Newey-West HAC standard errors (requires maxLags)
+            %       'HAC' - Newey-West HAC standard errors
             %   options.clusterIds - Cluster identifiers
-            %   options.maxLags - Maximum lags for HAC
+            %   options.lag - Lag truncation order for HAC (default: floor(4*(n/100)^(2/9)))
             %   options.kernel - HAC kernel (default 'bartlett')
             %   options.margeffMethod - Marginal effects calculation method:
             %       'dydx' - Derivative with respect to x (default)
@@ -267,7 +276,7 @@
             %
             %   % HAC standard errors
             %   result = pyBridge.StatsmodelsWrapper.logistic(y, X, ...
-            %       covType="HAC", maxLags=4);
+            %       covType="HAC", lag=4);
             
             arguments
                 y double % 0/1
@@ -276,7 +285,7 @@
                 options.maxIter double = 100
                 options.covType char = "nonrobust"
                 options.clusterIds double = []
-                options.maxLags double = []
+                options.lag double = []
                 options.kernel char = "bartlett"
                 options.margeffMethod char = "dydx"
                 options.margeffAt char = "mean"
@@ -309,10 +318,14 @@
             
             if strcmp(covTypeLower, "hac")
                 % HAC standard errors - use fit() with cov_type
-                covKwds = py.dict();
-                if ~isempty(options.maxLags)
-                    covKwds{"maxlags"} = int64(options.maxLags);
+                % Compute default lag if not specified: floor(4*(n/100)^(2/9))
+                if isempty(options.lag)
+                    nLag = floor(4*(length(y)/100)^(2/9));
+                else
+                    nLag = options.lag;
                 end
+                covKwds = py.dict();
+                covKwds{"maxlags"} = int64(nLag);
                 % Map kernel name to statsmodels-accepted name
                 mappedKernel = pyBridge.internal.CovarianceTypes.mapKernelName(options.kernel);
                 covKwds{"kernel"} = mappedKernel;
@@ -344,6 +357,16 @@
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "Logistic";
             result.covType = string(options.covType);
+            if strcmp(covTypeLower, "hac")
+                result.lag = nLag;
+                result.kernel = options.kernel;
+            end
+            
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
             
             % Add logistic regression specific results
             try
@@ -404,7 +427,7 @@
             %   options.addConstant - Whether to add constant term
             %   options.covType - Standard error type
             %   options.clusterIds - Cluster identifiers
-            %   options.maxLags - Maximum lags for HAC
+            %   options.lag - Lag truncation order for HAC (default: floor(4*(n/100)^(2/9)))
             %   options.margeffMethod - Marginal effects calculation method
             %   options.margeffAt - Location for marginal effects calculation
             %
@@ -421,7 +444,7 @@
                 options.maxIter double = 100
                 options.covType char = "nonrobust"
                 options.clusterIds double = []
-                options.maxLags double = []
+                options.lag double = []
                 options.kernel char = "bartlett"
                 options.margeffMethod char = "dydx"
                 options.margeffAt char = "mean"
@@ -454,10 +477,14 @@
             
             if strcmp(covTypeLower, "hac")
                 % HAC standard errors - use fit() with cov_type
-                covKwds = py.dict();
-                if ~isempty(options.maxLags)
-                    covKwds{"maxlags"} = int64(options.maxLags);
+                % Compute default lag if not specified: floor(4*(n/100)^(2/9))
+                if isempty(options.lag)
+                    nLag = floor(4*(length(y)/100)^(2/9));
+                else
+                    nLag = options.lag;
                 end
+                covKwds = py.dict();
+                covKwds{"maxlags"} = int64(nLag);
                 % Map kernel name to statsmodels-accepted name
                 mappedKernel = pyBridge.internal.CovarianceTypes.mapKernelName(options.kernel);
                 covKwds{"kernel"} = mappedKernel;
@@ -489,6 +516,16 @@
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "Probit";
             result.covType = string(options.covType);
+            if strcmp(covTypeLower, "hac")
+                result.lag = nLag;
+                result.kernel = options.kernel;
+            end
+            
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
             
             % Marginal effects calculation
             try
@@ -534,10 +571,10 @@
             %       'nonrobust' - Classical standard errors (default)
             %       'sandwich' - Robust standard errors (Huber-White)
             %       'cluster' - Clustered standard errors (requires clusterIds)
-            %       'HAC' - Newey-West HAC standard errors (requires maxLags)
-            %       'hac-groupsum' - Driscoll-Kraay panel HAC (requires timeIds and maxLags)
+            %       'HAC' - Newey-West HAC standard errors
+            %       'hac-groupsum' - Driscoll-Kraay panel HAC (requires timeIds)
             %   options.clusterIds - Cluster identifiers (for clustered standard errors)
-            %   options.maxLags - Maximum lags for HAC (for HAC standard errors)
+            %   options.lag - Lag truncation order for HAC (default: floor(4*(n/100)^(2/9)))
             %   options.timeIds - Time identifiers (for hac-groupsum)
             %   options.kernel - HAC kernel (default 'bartlett')
             %   options.referenceLevel - Reference category for MNLogit (default: smallest)
@@ -559,11 +596,11 @@
             %
             %   % HAC standard errors (Newey-West)
             %   result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-            %       covType="HAC", maxLags=4);
+            %       covType="HAC", lag=4);
             %
             %   % Driscoll-Kraay panel HAC
             %   result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-            %       covType="hac-groupsum", timeIds=yearIds, maxLags=4);
+            %       covType="hac-groupsum", timeIds=yearIds, lag=4);
             %
             %   % Custom reference level (set category 2 as reference)
             %   result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
@@ -576,7 +613,7 @@
                 options.maxIter double = 100
                 options.covType char = "nonrobust"
                 options.clusterIds double = []
-                options.maxLags double = []
+                options.lag double = []
                 options.timeIds double = []
                 options.kernel char = "bartlett"
                 options.referenceLevel double = nan  % Reference level (default: smallest category)
@@ -636,10 +673,14 @@
             if strcmp(covTypeLower, "hac") || strcmp(covTypeLower, "hac-groupsum") || ...
                strcmp(covTypeLower, "hac-panel")
                 % HAC standard errors: specify cov_type and cov_kwds in fit()
-                covKwds = py.dict();
-                if ~isempty(options.maxLags)
-                    covKwds{"maxlags"} = int64(options.maxLags);
+                % Compute default lag if not specified: floor(4*(n/100)^(2/9))
+                if isempty(options.lag)
+                    nLag = floor(4*(length(y)/100)^(2/9));
+                else
+                    nLag = options.lag;
                 end
+                covKwds = py.dict();
+                covKwds{"maxlags"} = int64(nLag);
                 
                 % Map kernel name to statsmodels-accepted name
                 mappedKernel = pyBridge.internal.CovarianceTypes.mapKernelName(options.kernel);
@@ -662,7 +703,7 @@
                 result = pyBridge.ResultParser.parseStatsmodels(fitResult);
                 result.modelType = "MultinomialLogit";
                 result.covType = string(upper(options.covType));
-                result.maxLags = options.maxLags;
+                result.lag = nLag;
                 result.kernel = options.kernel;  % Keep original for user reference
                 
             elseif strcmp(covTypeLower, "cluster")
@@ -711,6 +752,12 @@
                 fitResult = model.fit(pyargs('maxiter', int32(options.maxIter), 'disp', false));
                 result = pyBridge.ResultParser.parseStatsmodels(fitResult);
                 result.modelType = "MultinomialLogit";
+            end
+            
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
             end
             
             % Store reference level and category mapping in result
@@ -807,6 +854,12 @@
 
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "OrderedLogit";
+            
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
 
             % Extract thresholds using model.k_extra (number of threshold parameters)
             % OrderedModel params order: [beta_1, ..., beta_p, threshold_1, ..., threshold_{K-1}]
@@ -887,6 +940,12 @@
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "OrderedProbit";
             
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
+            
             % Extract thresholds using model.k_extra (number of threshold parameters)
             % OrderedModel params order: [beta_1, ..., beta_p, threshold_1, ..., threshold_{K-1}]
             try
@@ -958,6 +1017,12 @@
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "Poisson";
             
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
+            
             % Overdispersion test - use py.getattr for safe attribute access
             pearsonChi2Attr = py.getattr(fitResult, "pearson_chi2", py.None);
             dfResidAttr = py.getattr(fitResult, "df_resid", py.None);
@@ -1000,6 +1065,12 @@
             
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "NegativeBinomial";
+            
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
             
             % Overdispersion parameter (alpha) is the last parameter
             params = double(py.getattr(fitResult, 'params'));
@@ -1084,6 +1155,12 @@
             % Parse result
             result = pyBridge.ResultParser.parseStatsmodels(fitResult);
             result.modelType = "ZeroInflatedNB";
+            
+            % MLE models use z-statistics (asymptotic normal), not t-statistics
+            if isfield(result, 'tStatistics')
+                result.zStatistics = result.tStatistics;
+                result = rmfield(result, 'tStatistics');
+            end
             
             % Separate count part and zero-inflation part coefficients
             nCountParams = size(X, 2) + options.addConstant;

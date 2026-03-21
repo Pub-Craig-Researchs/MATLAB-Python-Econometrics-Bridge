@@ -265,7 +265,7 @@
             
             % pyBridge调用HAC标准误
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=hacLags, kernel=hacKernel);
+                covType="hac", lag=hacLags, kernel=hacKernel);
             
             % 验证结果结构
             testCase.verifyTrue(isfield(result, 'stdErrors'), ...
@@ -280,8 +280,8 @@
             % 验证参数设置正确记录
             testCase.verifyEqual(upper(result.covType), "HAC", ...
                 'covType应为HAC');
-            testCase.verifyEqual(result.maxLags, hacLags, ...
-                'maxLags应正确记录');
+            testCase.verifyEqual(result.lag, hacLags, ...
+                'lag应正确记录');
             testCase.verifyEqual(result.kernel, hacKernel, ...
                 'kernel应正确记录');
         end
@@ -292,12 +292,12 @@
             
             y = testCase.TestData.mlogit.y;
             X = testCase.TestData.mlogit.X;
-            maxLags = 4;
+            lag = 4;
             kernel = "bartlett";
             
             % pyBridge调用
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=maxLags, kernel=kernel);
+                covType="hac", lag=lag, kernel=kernel);
             
             % 直接Python调用 - ensure proper array dimensions for Python 3.13+
             yPy = py.numpy.array(y).flatten();  % Ensure 1D
@@ -307,7 +307,7 @@
             
             % 获取HAC标准误 - fit with cov_type directly (MNLogit has no get_robustcov_results)
             covKwds = py.dict();
-            covKwds{"maxlags"} = int32(maxLags);
+            covKwds{"maxlags"} = int32(lag);
             covKwds{"kernel"} = kernel;
             fitRobust = model.fit(pyargs('cov_type', 'HAC', 'cov_kwds', covKwds, 'disp', false));
             
@@ -334,7 +334,7 @@
                     result = pyBridge.StatsmodelsWrapper.ols(y, X, covType="HC0");
                 else
                     result = pyBridge.StatsmodelsWrapper.ols(y, X, ...
-                        covType="hac", maxLags=lags(i));
+                        covType="hac", lag=lags(i));
                 end
                 seByLag(:, i) = result.stdErrors;
             end
@@ -349,12 +349,12 @@
             % 验证Newey-West核函数权重公式
             % w(j) = 1 - j/(m+1), 其中m是最大滞后阶数
             
-            maxLags = 4;
+            lag = 4;
             
             % 计算期望的权重
-            expectedWeights = zeros(maxLags + 1, 1);
-            for j = 0:maxLags
-                expectedWeights(j+1) = 1 - j / (maxLags + 1);
+            expectedWeights = zeros(lag + 1, 1);
+            for j = 0:lag
+                expectedWeights(j+1) = 1 - j / (lag + 1);
             end
             
             % 验证权重递减
@@ -370,7 +370,7 @@
             % 验证首尾权重
             testCase.verifyEqual(expectedWeights(1), 1, 'AbsTol', 1e-10, ...
                 '滞后0的权重应为1');
-            testCase.verifyEqual(expectedWeights(end), 1/(maxLags+1), 'AbsTol', 1e-10, ...
+            testCase.verifyEqual(expectedWeights(end), 1/(lag+1), 'AbsTol', 1e-10, ...
                 '最大滞后的权重应为1/(m+1)');
         end
     end
@@ -414,9 +414,9 @@
             % 经典标准误
             resultClassic = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X);
             
-            % 验证p值与t统计量的一致性
-            % p = 2 * (1 - normcdf(|t|)) 对于MLE模型
-            expectedPValues = 2 * (1 - normcdf(abs(resultClassic.tStatistics)));
+            % 验证p值与z统计量的一致性
+            % p = 2 * (1 - normcdf(|z|)) 对于MLE模型
+            expectedPValues = 2 * (1 - normcdf(abs(resultClassic.zStatistics)));
             
             testCase.verifyEqual(resultClassic.pValues, expectedPValues, 'RelTol', 0.01, ...
                 'p值应与t统计量通过正态分布计算一致');
@@ -457,7 +457,7 @@
             
             % HAC标准误
             resultHAC = pyBridge.StatsmodelsWrapper.ols(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             % 手动计算p值
             tStats = resultHAC.params ./ resultHAC.stdErrors;
@@ -481,7 +481,7 @@
             
             % 带HAC标准误的Logit
             result = pyBridge.StatsmodelsWrapper.logistic(y, X, ...
-                covType="HAC", maxLags=4);
+                covType="HAC", lag=4);
             
             % 验证边际效应存在
             testCase.verifyTrue(isfield(result, 'marginalEffects'), ...
@@ -565,7 +565,7 @@
             
             % HAC标准误
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4, kernel="bartlett");
+                covType="hac", lag=4, kernel="bartlett");
             
             % 验证边际效应存在
             testCase.verifyTrue(isfield(result, 'marginalEffects'), ...

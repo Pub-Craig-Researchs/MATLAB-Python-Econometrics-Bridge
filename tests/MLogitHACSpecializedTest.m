@@ -180,7 +180,7 @@
             X = testCase.TestData.mlogit.X;
             
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4, kernel="bartlett"); %#ok<NASGU>
+                covType="hac", lag=4, kernel="bartlett"); %#ok<NASGU>
             
             % 从Python获取协方差矩阵 - ensure proper array dimensions for Python 3.13+
             yPy = py.numpy.array(y).flatten();  % Ensure 1D
@@ -220,7 +220,7 @@
             
             % pyBridge调用
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=maxLags, kernel=kernelType);
+                covType="hac", lag=maxLags, kernel=kernelType);
             
             % 验证结果有效 - use (:) to flatten for scalar check
             testCase.verifyTrue(all(isfinite(result.stdErrors(:))), ...
@@ -247,14 +247,14 @@
             
             % pyBridge调用
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=lagOrder, kernel="bartlett");
+                covType="hac", lag=lagOrder, kernel="bartlett");
             
             % 验证结果有效 - use (:) to flatten for scalar check
             testCase.verifyTrue(all(isfinite(result.stdErrors(:))), ...
                 sprintf('滞后阶数%d应产生有限标准误', lagOrder));
             
             % 验证滞后阶数正确记录
-            testCase.verifyEqual(result.maxLags, lagOrder, ...
+            testCase.verifyEqual(result.lag, lagOrder, ...
                 '滞后阶数应正确记录');
         end
         
@@ -271,7 +271,7 @@
             
             for i = 1:length(lags)
                 result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                    covType="hac", maxLags=lags(i), kernel="bartlett");
+                    covType="hac", lag=lags(i), kernel="bartlett");
                 seByLag{i} = result.stdErrors;
             end
             
@@ -300,14 +300,14 @@
             X = testCase.TestData.mlogit.X;
             
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             % 手动计算t统计量
             tStats = result.params ./ result.stdErrors;
             
-            % 验证t统计量
-            testCase.verifyEqual(result.tStatistics, tStats, 'RelTol', 1e-10, ...
-                't统计量应等于系数/标准误');
+            % 验证z统计量
+            testCase.verifyEqual(result.zStatistics, tStats, 'RelTol', 1e-10, ...
+                'z统计量应等于系数/标准误');
             
             % 验证p值 (使用正态分布)
             expectedPValues = 2 * (1 - normcdf(abs(tStats)));
@@ -331,7 +331,7 @@
                 try
                     if strcmp(covType, 'hac')
                         result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                            covType=covType, maxLags=4);
+                            covType=covType, lag=4);
                     elseif strcmp(covType, 'cluster')
                         % 创建假聚类
                         clusterIds = mod(1:length(y), 50)' + 1;
@@ -363,10 +363,10 @@
             X = testCase.TestData.mlogit.X;
             
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
-            % 5%显著性水平对应|t| > 1.96
-            significantAt5Pct = abs(result.tStatistics) > 1.96;
+            % 5%显著性水平对应|z| > 1.96
+            significantAt5Pct = abs(result.zStatistics) > 1.96;
             significantByPValue = result.pValues < 0.05;
             
             testCase.verifyEqual(significantAt5Pct, significantByPValue, ...
@@ -384,7 +384,7 @@
             X = testCase.TestData.mlogit.X;
             
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             testCase.verifyTrue(isfield(result, 'marginalEffects'), ...
                 'HAC结果应包含边际效应');
@@ -408,7 +408,7 @@
             
             % HAC标准误
             resultHAC = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             % 边际效应值应相同（只有标准误不同）
             if ~isempty(resultClassic.marginalEffects) && ~isempty(resultHAC.marginalEffects)
@@ -436,7 +436,7 @@
             X = testCase.TestData.mlogit.X;
             
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             if isfield(result, 'marginalEffects') && ...
                isfield(result, 'marginalEffectsSE') && ...
@@ -491,7 +491,7 @@
             
             % pyBridge调用
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=maxLags, kernel=kernel);
+                covType="hac", lag=maxLags, kernel=kernel);
             
             % 直接Python调用 - ensure proper array dimensions
             yPy = py.numpy.array(y).flatten();
@@ -519,9 +519,9 @@
             testCase.verifyEqual(result.stdErrors, stdErrorsPy(:), 'RelTol', 1e-6, ...
                 'HAC标准误应与Python一致');
             
-            % 验证t统计量一致
-            testCase.verifyEqual(result.tStatistics, tStatsPy(:), 'RelTol', 1e-6, ...
-                'HAC t统计量应与Python一致');
+            % 验证z统计量一致
+            testCase.verifyEqual(result.zStatistics, tStatsPy(:), 'RelTol', 1e-6, ...
+                'HAC z统计量应与Python一致');
             
             % 验证p值一致
             testCase.verifyEqual(result.pValues, pValuesPy(:), 'RelTol', 0.01, ...
@@ -573,7 +573,7 @@
             
             % 小样本应该能处理
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=2);
+                covType="hac", lag=2);
             
             testCase.verifyTrue(all(isfinite(result.stdErrors(:))), ...
                 '小样本HAC应产生有限标准误');
@@ -590,7 +590,7 @@
             largeLag = 20;
             
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=largeLag);
+                covType="hac", lag=largeLag);
             
             testCase.verifyTrue(all(isfinite(result.stdErrors(:))), ...
                 '大滞后阶数应产生有限标准误');
@@ -606,7 +606,7 @@
             y = randi([0, 1], n, 1);  % 只有2个类别
             
             result = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             testCase.verifyEqual(result.nCategories, 2, ...
                 '应正确识别2个类别');
@@ -638,7 +638,7 @@
             
             % 0滞后HAC
             resultHAC0 = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=0);
+                covType="hac", lag=0);
             
             % HC0 (sandwich)
             resultHC0 = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
@@ -662,9 +662,9 @@
             
             % 多次运行应产生相同结果
             result1 = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             result2 = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             testCase.verifyEqual(result1.stdErrors, result2.stdErrors, ...
                 'AbsTol', 1e-15, ...
@@ -680,18 +680,18 @@
             
             % 原始数据
             result1 = pyBridge.StatsmodelsWrapper.multinomialLogit(y, X, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
             % 缩放数据
             scaleFactor = 100;
             XScaled = X * scaleFactor;
             result2 = pyBridge.StatsmodelsWrapper.multinomialLogit(y, XScaled, ...
-                covType="hac", maxLags=4);
+                covType="hac", lag=4);
             
-            % 系数应该缩放，但t统计量应该相同
-            testCase.verifyEqual(result1.tStatistics, result2.tStatistics, ...
+            % 系数应该缩放，但z统计量应该相同
+            testCase.verifyEqual(result1.zStatistics, result2.zStatistics, ...
                 'RelTol', 0.01, ...
-                '数据缩放不应改变t统计量');
+                '数据缩放不应改变z统计量');
         end
     end
 end

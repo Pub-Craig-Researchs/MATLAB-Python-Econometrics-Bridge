@@ -107,7 +107,7 @@ y = 1 + 2*X(:,1) + 1.5*X(:,2) + epsilon;
 % HAC standard errors
 % Note: "newey-west" is internally mapped to "bartlett"
 resultHAC = pyBridge.StatsmodelsWrapper.ols(y, X, ...
-    covType="hac", maxLags=4, kernel="newey-west");
+    covType="hac", lag=4, kernel="newey-west");
 
 fprintf("HAC SE (Newey-West, 4 Lags):\n");
 fprintf("  Coefficients: [%.3f, %.3f]\n", resultHAC.params(2:3));
@@ -122,7 +122,7 @@ for lag = 0:2:8
         fprintf("  Lag=%d (HC0): [%.3f, %.3f]\n", lag, resultLag.stdErrors(2:3));
     else
         resultLag = pyBridge.StatsmodelsWrapper.ols(y, X, ...
-            covType="hac", maxLags=lag);
+            covType="hac", lag=lag);
         fprintf("  Lag=%d: [%.3f, %.3f]\n", lag, resultLag.stdErrors(2:3));
     end
 end

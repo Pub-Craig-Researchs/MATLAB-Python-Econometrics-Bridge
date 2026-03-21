@@ -32,6 +32,7 @@
         decimalStat = 2             % Statistics decimal places
         showStars logical = true    % Whether to show stars
         fontName char = "Times New Roman"  % Excel default font
+        useAdjusted logical = false  % true: show Adj R²/Adj Pseudo R²; false: show R²/Pseudo R²
     end
     
     properties(Access = private)
@@ -503,10 +504,11 @@
             if isfield(result, 'nObs')
                 stats.nObs = result.nObs;
             end
-            if isfield(result, 'rSquared')
+            % Only extract rSquared if rSquaredWithin is NOT available (to avoid duplication for panel models)
+            if isfield(result, 'rSquared') && ~isfield(result, 'rSquaredWithin')
                 stats.rSquared = result.rSquared;
             end
-            if isfield(result, 'adjRSquared')
+            if isfield(result, 'adjRSquared') && ~isfield(result, 'rSquaredWithin')
                 stats.adjRSquared = result.adjRSquared;
             end
             if isfield(result, 'aic')
@@ -523,6 +525,21 @@
             end
             if isfield(result, 'nCategories')
                 stats.nCategories = result.nCategories;
+            end
+            if isfield(result, 'pseudoRSquared')
+                stats.pseudoRSquared = result.pseudoRSquared;
+            end
+            if isfield(result, 'adjPseudoRSquared')
+                stats.adjPseudoRSquared = result.adjPseudoRSquared;
+            end
+            if isfield(result, 'rSquaredWithin')
+                stats.rSquaredWithin = result.rSquaredWithin;
+            end
+            if isfield(result, 'rSquaredOverall')
+                stats.rSquaredOverall = result.rSquaredOverall;
+            end
+            if isfield(result, 'rSquaredBetween')
+                stats.rSquaredBetween = result.rSquaredBetween;
             end
         end
         
@@ -565,8 +582,17 @@
             [nTotalCols, colModelIdx, colSubIdx] = obj.getTotalColumns();
             nVars = length(obj.varOrder);
             
-            % Calculate column width
+            % Calculate column width considering both variable names and stat labels
             varColWidth = max([12, max(strlength(obj.varOrder)) + 2]);
+            % Also consider stat label widths
+            statList = obj.getStatDisplayList();
+            for sk = 1:length(statList)
+                entry = statList{sk};
+                labelLen = strlength(string(entry{2})) + 2;
+                if labelLen > varColWidth
+                    varColWidth = labelLen;
+                end
+            end
             modelColWidth = 14;
             
             % Collect column titles
@@ -692,23 +718,14 @@
         
         function lines = addStatsToConsole(obj, lines, varColWidth, modelColWidth, nTotalCols, colModelIdx)
             % Add statistics to console output
+            statList = obj.getStatDisplayList();
             
-            statLabels = struct();
-            statLabels.nObs = "Observations";
-            statLabels.rSquared = "R-squared";
-            statLabels.adjRSquared = "Adj R-squared";
-            statLabels.aic = "AIC";
-            statLabels.bic = "BIC";
-            statLabels.alpha = "Alpha";
-            statLabels.nClusters = "N Clusters";
-            
-            statFields = fieldnames(statLabels);
-            
-            for k = 1:length(statFields)
-                field = statFields{k};
-                label = statLabels.(field);
+            for k = 1:length(statList)
+                entry = statList{k};
+                field = entry{1};
+                label = entry{2};
+                isInt = entry{3};
                 
-                % Check if any model has this statistic
                 hasStat = any(cellfun(@(m) isfield(m.stats, field), obj.models));
                 
                 if hasStat
@@ -720,7 +737,7 @@
                         
                         if isfield(model.stats, field)
                             val = model.stats.(field);
-                            if strcmp(field, "nObs") || strcmp(field, "nClusters")
+                            if isInt
                                 statStr = statStr + sprintf("  %*d", modelColWidth, round(val));
                             else
                                 statStr = statStr + sprintf("  %*.3f", modelColWidth, val);
@@ -781,27 +798,31 @@
             end
             
             % Statistics
-            statLabels = struct();
-            statLabels.nObs = "Observations";
-            statLabels.aic = "AIC";
-            statLabels.bic = "BIC";
-            
-            statFields = fieldnames(statLabels);
-            for k = 1:length(statFields)
-                field = statFields{k};
-                label = statLabels.(field);
+            statList = obj.getStatDisplayList();
+            for k = 1:length(statList)
+                entry = statList{k};
+                field = entry{1};
+                label = entry{2};
+                isInt = entry{3};
                 
-                row = {label};
-                for c = 1:nTotalCols
-                    model = obj.models{colModelIdx(c)};
-                    if isfield(model.stats, field)
-                        val = model.stats.(field);
-                        row{end+1} = sprintf("%.2f", val); %#ok<AGROW>
-                    else
-                        row{end+1} = ""; %#ok<AGROW>
+                hasStat = any(cellfun(@(m) isfield(m.stats, field), obj.models));
+                if hasStat
+                    row = {label};
+                    for c = 1:nTotalCols
+                        model = obj.models{colModelIdx(c)};
+                        if isfield(model.stats, field)
+                            val = model.stats.(field);
+                            if isInt
+                                row{end+1} = sprintf("%d", round(val)); %#ok<AGROW>
+                            else
+                                row{end+1} = sprintf("%.*f", obj.decimalStat, val); %#ok<AGROW>
+                            end
+                        else
+                            row{end+1} = ""; %#ok<AGROW>
+                        end
                     end
+                    data{end+1, :} = row; %#ok<AGROW>
                 end
-                data{end+1, :} = row; %#ok<AGROW>
             end
             
             if obj.showStars
@@ -881,18 +902,32 @@
             lines{end+1} = midRule;
             
             % Statistics
-            if any(cellfun(@(m) isfield(m.stats, 'nObs'), obj.models))
-                statStr = "Observations";
-                for c = 1:nTotalCols
-                    model = obj.models{colModelIdx(c)};
-                    if isfield(model.stats, 'nObs')
-                        statStr = statStr + sprintf(" & %d", round(model.stats.nObs));
-                    else
-                        statStr = statStr + " & ";
+            statList = obj.getStatDisplayList();
+            for k = 1:length(statList)
+                entry = statList{k};
+                field = entry{1};
+                label = entry{2};
+                isInt = entry{3};
+                
+                hasStat = any(cellfun(@(m) isfield(m.stats, field), obj.models));
+                if hasStat
+                    statStr = obj.escapeLaTeX(label);
+                    for c = 1:nTotalCols
+                        model = obj.models{colModelIdx(c)};
+                        if isfield(model.stats, field)
+                            val = model.stats.(field);
+                            if isInt
+                                statStr = statStr + sprintf(" & %d", round(val));
+                            else
+                                statStr = statStr + sprintf(" & %.*f", obj.decimalStat, val);
+                            end
+                        else
+                            statStr = statStr + " & ";
+                        end
                     end
+                    statStr = statStr + " \\\\";
+                    lines{end+1} = statStr; %#ok<AGROW>
                 end
-                statStr = statStr + " \\\\";
-                lines{end+1} = statStr;
             end
             
             lines{end+1} = bottomRule;
@@ -967,24 +1002,24 @@
             rowIdx = rowIdx + 1;
             
             % Statistics
-            statLabels = struct();
-            statLabels.nObs = "Observations";
-            statLabels.rSquared = "R-squared";
-            statLabels.aic = "AIC";
-            statLabels.bic = "BIC";
-            statLabels.alpha = "Alpha";
-            
-            statFields = fieldnames(statLabels);
-            for k = 1:length(statFields)
-                field = statFields{k};
-                label = statLabels.(field);
+            statList = obj.getStatDisplayList();
+            for k = 1:length(statList)
+                entry = statList{k};
+                field = entry{1};
+                label = entry{2};
+                isInt = entry{3};
                 
                 if any(cellfun(@(m) isfield(m.stats, field), obj.models))
                     data{rowIdx, 1} = label;
                     for c = 1:nTotalCols
                         model = obj.models{colModelIdx(c)};
                         if isfield(model.stats, field)
-                            data{rowIdx, c+1} = model.stats.(field);
+                            val = model.stats.(field);
+                            if isInt
+                                data{rowIdx, c+1} = round(val);
+                            else
+                                data{rowIdx, c+1} = val;
+                            end
                         end
                     end
                     rowIdx = rowIdx + 1;
@@ -1084,6 +1119,43 @@
             escaped = strrep(escaped, "{", "\{");
             escaped = strrep(escaped, "}", "\}");
             escaped = strrep(escaped, "&", "\&");
+        end
+        
+        function statList = getStatDisplayList(obj)
+            % Returns unified stat display configuration
+            % Each row: {fieldName, label, isInteger}
+            statList = {};
+            
+            % Observations (always show)
+            statList{end+1} = {"nObs", "Observations", true};
+            
+            % R-squared (linear models)
+            if obj.useAdjusted
+                statList{end+1} = {"adjRSquared", "Adj R-squared", false};
+            else
+                statList{end+1} = {"rSquared", "R-squared", false};
+            end
+            
+            % Pseudo R-squared (discrete models: Logit, Probit, etc.)
+            if obj.useAdjusted
+                statList{end+1} = {"adjPseudoRSquared", "Adj Pseudo R²", false};
+            else
+                statList{end+1} = {"pseudoRSquared", "Pseudo R²", false};
+            end
+            
+            % Panel R-squared
+            statList{end+1} = {"rSquaredWithin", "Within R-squared", false};
+            statList{end+1} = {"rSquaredOverall", "Overall R-squared", false};
+            statList{end+1} = {"rSquaredBetween", "Between R-squared", false};
+            
+            % Information criteria
+            statList{end+1} = {"aic", "AIC", false};
+            statList{end+1} = {"bic", "BIC", false};
+            
+            % Other
+            statList{end+1} = {"fStatistic", "F-statistic", false};
+            statList{end+1} = {"alpha", "Alpha", false};
+            statList{end+1} = {"nClusters", "N Clusters", true};
         end
     end
 end

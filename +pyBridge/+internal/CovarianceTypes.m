@@ -64,7 +64,7 @@
             % Parameters:
             %   residuals - Regression residuals
             %   X - Design matrix
-            %   options.maxLags - Maximum lag order (default auto-select)
+            %   options.lag - Lag order for HAC (default: floor(4*(n/100)^(2/9)))
             %   options.kernel - Kernel function: 'bartlett', 'newey-west', 'parzen', 'qs'
             %
             % Returns:
@@ -76,7 +76,7 @@
             arguments
                 residuals double
                 X double
-                options.maxLags double = []
+                options.lag double = []
                 options.kernel char = "bartlett"  % 'bartlett' (Newey-West), 'parzen', 'qs'
             end
             
@@ -91,10 +91,10 @@
             k = size(X, 2);
             
             % Auto-select lags using Newey-West rule if not specified
-            if isempty(options.maxLags)
+            if isempty(options.lag)
                 nLags = floor(4 * (n/100)^(2/9));
             else
-                nLags = options.maxLags;
+                nLags = options.lag;
             end
             
             % Compute (X'X)^{-1}
@@ -309,30 +309,30 @@
             arguments
                 residuals double
                 X double
-                options.maxLagsRange double = 0:10
+                options.lagRange double = 0:10
             end
             
             pyBridge.ErrorHandler.assertPyAvailable("statsmodels");
             
             kernels = {"bartlett", "parzen", "qs"};  % Valid statsmodels kernel names
-            nLags = length(options.maxLagsRange);
+            nLags = length(options.lagRange);
             
             result = struct();
-            result.lags = options.maxLagsRange;
+            result.lags = options.lagRange;
             
             for k = 1:length(kernels)
                 kernel = kernels{k};
                 seMatrix = zeros(size(X, 2), nLags);
                 
                 for l = 1:nLags
-                    lag = options.maxLagsRange(l);
+                    lag = options.lagRange(l);
                     if lag == 0
                         % lag=0 is equivalent to White standard errors
                         covMatrix = pyBridge.internal.CovarianceTypes.heteroskedastic(...
                             residuals, X, "HC0");
                     else
                         covMatrix = pyBridge.internal.CovarianceTypes.hac(...
-                            residuals, X, maxLags=lag, kernel=kernel);
+                            residuals, X, lag=lag, kernel=kernel);
                     end
                     seMatrix(:, l) = sqrt(diag(covMatrix));
                 end

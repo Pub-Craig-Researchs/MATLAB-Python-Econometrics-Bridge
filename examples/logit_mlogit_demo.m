@@ -109,11 +109,11 @@ fprintf('  BIC: %.4f\n', result_logit.bic);
 % Display coefficients
 varNames = {'const', 'X1', 'X2', 'X3'};
 fprintf('\n  Coefficients:\n');
-fprintf('  %-10s %10s %10s %10s %10s\n', 'Variable', 'Coef', 'Std.Err', 't-stat', 'p-value');
+fprintf('  %-10s %10s %10s %10s %10s\n', 'Variable', 'Coef', 'Std.Err', 'z-stat', 'p-value');
 for i = 1:length(result_logit.params)
     fprintf('  %-10s %10.4f %10.4f %10.4f %10.4f\n', ...
         varNames{i}, result_logit.params(i), result_logit.stdErrors(i), ...
-        result_logit.tStatistics(i), result_logit.pValues(i));
+        result_logit.zStatistics(i), result_logit.pValues(i));
 end
 
 %% Section 3: HAC Standard Error Correction
@@ -141,7 +141,7 @@ fprintf('\n--- HAC Standard Errors for OLS (Linear Probability Model) ---\n');
 % Newey-West kernel with automatic lag selection
 % Note: "newey-west", "nw", and "bartlett" are all equivalent aliases
 result_hac_bartlett = pyBridge.StatsmodelsWrapper.ols(y_binary, X, ...
-    covType="hac", maxLags=autoLag, kernel="newey-west");
+    covType="hac", lag=autoLag, kernel="newey-west");
 
 fprintf('\nOLS with HAC (Newey-West kernel, lag=%d):\n', autoLag);
 fprintf('  %-10s %10s %10s\n', 'Variable', 'Coef', 'HAC SE');
@@ -152,7 +152,7 @@ end
 
 % Parzen kernel
 result_hac_parzen = pyBridge.StatsmodelsWrapper.ols(y_binary, X, ...
-    covType="hac", maxLags=autoLag, kernel="parzen");
+    covType="hac", lag=autoLag, kernel="parzen");
 
 fprintf('\nOLS with HAC (Parzen kernel, lag=%d):\n', autoLag);
 fprintf('  %-10s %10s %10s\n', 'Variable', 'Coef', 'HAC SE');
@@ -163,7 +163,7 @@ end
 
 % Quadratic Spectral kernel with fixed lag
 result_hac_qs = pyBridge.StatsmodelsWrapper.ols(y_binary, X, ...
-    covType="hac", maxLags=6, kernel="qs");
+    covType="hac", lag=6, kernel="qs");
 
 fprintf('\nOLS with HAC (Quadratic Spectral kernel, lag=6):\n');
 fprintf('  %-10s %10s %10s\n', 'Variable', 'Coef', 'HAC SE');
@@ -178,7 +178,7 @@ end
 fprintf('\n--- HAC Standard Errors for Logistic Regression ---\n');
 
 result_logit_hac = pyBridge.StatsmodelsWrapper.logistic(y_binary, X, ...
-    covType="HAC", maxLags=autoLag);
+    covType="HAC", lag=autoLag);
 
 fprintf('\nLogit with HAC (Bartlett kernel, lag=%d):\n', autoLag);
 fprintf('  %-10s %10s %10s %10s\n', 'Variable', 'Coef', 'HAC SE', 'p-value');
@@ -425,12 +425,13 @@ tbl_me = tbl_me.setVarOrder({"X1", "X2", "X3"});
 
 % Display marginal effects comparison table
 fprintf('\n--- Marginal Effects Comparison ---\n');
-fprintf('AME: Average Marginal Effect (at="overall")\n');
-fprintf('MEM: Marginal Effect at Mean (at="mean")\n');
-fprintf('eyex: Elasticity (%%dy/%%dx)\n');
-fprintf('dyex: Semi-elasticity (dy/%%dx)\n');
-fprintf('eydx: Semi-elasticity (%%dy/dx)\n\n');
+fprintf("AME: Average Marginal Effect (at=""overall"")\n");
+fprintf("MEM: Marginal Effect at Mean (at=""mean"")\n");
+fprintf("eyex: Elasticity (%%dy/%%dx)\n");
+fprintf("dyex: Semi-elasticity (dy/%%dx)\n");
+fprintf("eydx: Semi-elasticity (%%dy/dx)\n\n");
 tbl_me.display();
+tbl_me.toExcel("outputs/regression_results.xlsx");
 
 %% Summary
 fprintf('\n');
